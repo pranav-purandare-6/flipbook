@@ -18,9 +18,11 @@ import com.pranav.flipbook.data.entity.*
         ReadingSessionEntity::class,
         ReadingGoalEntity::class,
         AchievementEntity::class,
-        FavoriteQuoteEntity::class
+        FavoriteQuoteEntity::class,
+        ReadingListEntity::class,
+        ReadingListBookCrossRef::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class FlipBookDatabase : RoomDatabase() {
@@ -34,6 +36,7 @@ abstract class FlipBookDatabase : RoomDatabase() {
     abstract fun readingGoalDao(): ReadingGoalDao
     abstract fun achievementDao(): AchievementDao
     abstract fun favoriteQuoteDao(): FavoriteQuoteDao
+    abstract fun readingListDao(): ReadingListDao
 
     companion object {
         @Volatile

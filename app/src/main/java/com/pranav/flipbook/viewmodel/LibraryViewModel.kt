@@ -24,7 +24,7 @@ enum class SortOrder {
 }
 
 enum class LibraryLayout {
-    GRID, LIST
+    GRID, LIST, BOOKSHELF
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)

@@ -23,6 +23,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pranav.flipbook.ui.reader.pagecurl.PageCurlView
 import com.pranav.flipbook.ui.reader.pagecurl.PageTransitionStyle
+import com.pranav.flipbook.viewmodel.SettingsViewModel
 import com.pranav.flipbook.utils.toProgressPercent
 import com.pranav.flipbook.viewmodel.ReaderViewModel
 import kotlinx.coroutines.delay
@@ -94,10 +95,29 @@ fun ReaderScreen(
         }
     }
 
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val readerTheme by settingsViewModel.readerTheme.collectAsState()
+    val marginSize by settingsViewModel.marginSize.collectAsState()
+    val readerBrightness by settingsViewModel.readerBrightness.collectAsState()
+
+    val marginPadding = when (marginSize) {
+        "small" -> 0.dp
+        "large" -> 24.dp
+        else -> 12.dp
+    }
+
+    val themeColor = when (readerTheme) {
+        "dark" -> Color(0xFF1A1410)
+        "sepia" -> Color(0xFFF4E8D1)
+        "warm" -> Color(0xFFFFF3E0)
+        "bw" -> Color.White
+        else -> Color(0xFFFFFAF2)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(themeColor)
     ) {
         when {
             isLoading -> {
@@ -107,7 +127,7 @@ fun ReaderScreen(
                 ) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Opening book...", color = Color.White.copy(alpha = 0.7f))
+                    Text("Opening book...", color = MaterialTheme.colorScheme.onBackground)
                 }
             }
             error != null -> {
@@ -117,13 +137,13 @@ fun ReaderScreen(
                 ) {
                     Icon(Icons.Default.Error, null, tint = Color(0xFFEF5350), modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text(error ?: "Unknown error", color = Color.White, style = MaterialTheme.typography.bodyLarge)
+                    Text(error ?: "Unknown error", color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.bodyLarge)
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(onClick = onBack) { Text("Go Back") }
                 }
             }
             else -> {
-                // Page content
+                // Page content with margins padding
                 PageCurlView(
                     currentBitmap = currentBitmap,
                     nextBitmap = nextBitmap,
@@ -138,10 +158,20 @@ fun ReaderScreen(
                     isZoomed = isZoomed,
                     modifier = Modifier
                         .fillMaxSize()
+                        .padding(marginPadding)
                         .onSizeChanged { size ->
                             viewModel.setViewSize(size.width, size.height)
                         }
                 )
+
+                // Brightness Overlay
+                if (readerBrightness < 0.99f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = (1f - readerBrightness).coerceIn(0f, 0.85f)))
+                    )
+                }
 
                 // Top controls
                 AnimatedVisibility(

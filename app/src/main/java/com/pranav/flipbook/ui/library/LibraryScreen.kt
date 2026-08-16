@@ -99,11 +99,19 @@ fun LibraryScreen(
                         }
                         IconButton(onClick = {
                             viewModel.setLayout(
-                                if (layout == LibraryLayout.GRID) LibraryLayout.LIST else LibraryLayout.GRID
+                                when (layout) {
+                                    LibraryLayout.GRID -> LibraryLayout.LIST
+                                    LibraryLayout.LIST -> LibraryLayout.BOOKSHELF
+                                    LibraryLayout.BOOKSHELF -> LibraryLayout.GRID
+                                }
                             )
                         }) {
                             Icon(
-                                if (layout == LibraryLayout.GRID) Icons.Default.ViewList else Icons.Default.GridView,
+                                when (layout) {
+                                    LibraryLayout.GRID -> Icons.Default.ViewList
+                                    LibraryLayout.LIST -> Icons.Default.TableRows
+                                    LibraryLayout.BOOKSHELF -> Icons.Default.GridView
+                                },
                                 "Toggle layout"
                             )
                         }
@@ -257,39 +265,50 @@ fun LibraryScreen(
                     SectionHeader("All Books (${allBooks.size})")
                 }
 
-                // All books grid or list
-                if (layout == LibraryLayout.GRID) {
-                    val rows = allBooks.chunked(3)
-                    items(rows.size) { rowIndex ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            rows[rowIndex].forEach { book ->
-                                BookCard(
-                                    book = book,
-                                    onClick = { onBookClick(book.id) },
-                                    onFavoriteClick = { viewModel.toggleFavorite(book.id, book.isFavorite) },
-                                    modifier = Modifier.weight(1f)
-                                )
+                when (layout) {
+                    LibraryLayout.GRID -> {
+                        val rows = allBooks.chunked(3)
+                        items(rows.size) { rowIndex ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                rows[rowIndex].forEach { book ->
+                                    BookCard(
+                                        book = book,
+                                        onClick = { onBookClick(book.id) },
+                                        onFavoriteClick = { viewModel.toggleFavorite(book.id, book.isFavorite) },
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                repeat(3 - rows[rowIndex].size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
                             }
-                            // Fill empty spaces
-                            repeat(3 - rows[rowIndex].size) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
+                            Spacer(modifier = Modifier.height(12.dp))
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
                     }
-                } else {
-                    items(allBooks.size) { index ->
-                        BookListItem(
-                            book = allBooks[index],
-                            onClick = { onBookClick(allBooks[index].id) },
-                            onFavoriteClick = { viewModel.toggleFavorite(allBooks[index].id, allBooks[index].isFavorite) },
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                        )
+                    LibraryLayout.LIST -> {
+                        items(allBooks.size) { index ->
+                            BookListItem(
+                                book = allBooks[index],
+                                onClick = { onBookClick(allBooks[index].id) },
+                                onFavoriteClick = { viewModel.toggleFavorite(allBooks[index].id, allBooks[index].isFavorite) },
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    LibraryLayout.BOOKSHELF -> {
+                        item {
+                            BookshelfView(
+                                books = allBooks,
+                                onBookClick = onBookClick,
+                                onFavoriteClick = { viewModel.toggleFavorite(it.id, it.isFavorite) },
+                                modifier = Modifier.height(400.dp)
+                            )
+                        }
                     }
                 }
             }

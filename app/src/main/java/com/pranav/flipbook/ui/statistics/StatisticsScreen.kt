@@ -83,14 +83,17 @@ fun StatisticsScreen(
                     }
                 }
 
-                // Streaks
+                // Streaks & Activity
                 item { Spacer(modifier = Modifier.height(8.dp)) }
-                item { Text("Streaks", style = MaterialTheme.typography.titleMedium) }
+                item { Text("Streaks & Activity", style = MaterialTheme.typography.titleMedium) }
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         StatCard("Current Streak", "${stats.currentStreak} days", Icons.Outlined.LocalFireDepartment, Modifier.weight(1f))
                         StatCard("Best Streak", "${stats.longestStreak} days", Icons.Outlined.EmojiEvents, Modifier.weight(1f))
                     }
+                }
+                item {
+                    ReadingCalendarView(readingDays = emptyList())
                 }
 
                 // Quick actions

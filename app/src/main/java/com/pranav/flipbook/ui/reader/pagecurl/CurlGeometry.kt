@@ -1,170 +1,135 @@
 package com.pranav.flipbook.ui.reader.pagecurl
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Path
 import kotlin.math.*
 
 object CurlGeometry {
 
-    data class CurlMesh(
+    data class Vector2D(val x: Float, val y: Float) {
+        fun length() = sqrt(x * x + y * y)
+        fun normalized(): Vector2D {
+            val len = length()
+            return if (len > 0f) Vector2D(x / len, y / len) else Vector2D(0f, 0f)
+        }
+        operator fun plus(other: Vector2D) = Vector2D(x + other.x, y + other.y)
+        operator fun minus(other: Vector2D) = Vector2D(x - other.x, y - other.y)
+        operator fun times(factor: Float) = Vector2D(x * factor, y * factor)
+    }
+
+    data class CurlMeshResult(
         val frontClipPath: Path,
-        val curlPath: Path,
-        val curlShadowPath: Path,
         val backClipPath: Path,
-        val curlTipX: Float,
-        val curlTipY: Float,
-        val foldLineAngle: Float,
-        val shadowAlpha: Float
+        val curlShadowPath: Path,
+        val foldLineStart: Offset,
+        val foldLineEnd: Offset,
+        val backMatrix: Matrix,
+        val shadowAlpha: Float,
+        val cylinderWidth: Float
     )
 
     /**
-     * Compute curl geometry from a normalized position (0..1).
-     * curlAmount: 0 = fully curled (page turned), 1 = flat (no curl)
-     * For forward turn: page curls from right to left
+     * Compute authentic paper curl geometry based on touch drag point P relative to origin corner C.
+     * Uses perpendicular bisector geometry: fold line is normal to vector (P - C) passing through midpoint M.
      */
-    fun computeCurl(
-        curlAmount: Float,
+    fun computePhysicalCurl(
+        touchX: Float,
+        touchY: Float,
+        originX: Float,
+        originY: Float,
         pageWidth: Float,
         pageHeight: Float,
-        isForward: Boolean = true
-    ): CurlMesh {
-        val clampedCurl = curlAmount.coerceIn(0f, 1f)
+        isForward: Boolean
+    ): CurlMeshResult {
+        val pX = touchX.coerceIn(0f, pageWidth)
+        val pY = touchY.coerceIn(0f, pageHeight)
 
-        // The fold line x position: moves from right edge to left
-        val foldX = if (isForward) {
-            pageWidth * clampedCurl
-        } else {
-            pageWidth * (1f - clampedCurl)
-        }
+        // Midpoint between origin corner C and dragged touch point P
+        val midX = (originX + pX) / 2f
+        val midY = (originY + pY) / 2f
 
-        // Curl radius for the cylinder effect
-        val curlRadius = pageWidth * 0.08f * (1f - abs(clampedCurl - 0.5f) * 2f)
-        
-        // Shadow parameters
-        val shadowAlpha = (0.4f * (1f - clampedCurl)).coerceIn(0f, 0.4f)
+        // Vector from C to P
+        val dx = pX - originX
+        val dy = pY - originY
+        val dist = sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
 
-        // Front clip path: the visible, flat part of the current page
-        val frontClipPath = Path().apply {
+        // Perpendicular vector along the fold line
+        val normalX = -dy / dist
+        val normalY = dx / dist
+
+        // Extend fold line across the page bounding box
+        val lineLen = sqrt(pageWidth * pageWidth + pageHeight * pageHeight) * 2f
+        val lineStart = Offset(midX - normalX * lineLen, midY - normalY * lineLen)
+        val lineEnd = Offset(midX + normalX * lineLen, midY + normalY * lineLen)
+
+        // Calculate progress (0 = no curl, 1 = fully turned)
+        val progress = (abs(pX - originX) / pageWidth).coerceIn(0f, 1f)
+
+        // Front path (unturned portion of page)
+        val frontPath = Path().apply {
             if (isForward) {
                 moveTo(0f, 0f)
-                lineTo(foldX, 0f)
-                lineTo(foldX, pageHeight)
+                lineTo(midX, 0f)
+                lineTo(midX, pageHeight)
                 lineTo(0f, pageHeight)
                 close()
             } else {
-                moveTo(foldX, 0f)
+                moveTo(midX, 0f)
                 lineTo(pageWidth, 0f)
                 lineTo(pageWidth, pageHeight)
-                lineTo(foldX, pageHeight)
+                lineTo(midX, pageHeight)
                 close()
             }
         }
 
-        // The curled section of the page
-        val curlWidth = curlRadius * PI.toFloat()
-        val curlPath = Path().apply {
+        // Folded back path
+        val cylinderW = (pageWidth * 0.12f * sin(progress * PI.toFloat())).coerceAtLeast(10f)
+        val backPath = Path().apply {
             if (isForward) {
-                val curlStart = foldX
-                val curlEnd = (foldX + curlWidth).coerceAtMost(pageWidth)
-                moveTo(curlStart, 0f)
-                // Add slight curve at top
-                cubicTo(
-                    curlStart + curlWidth * 0.3f, 0f,
-                    curlStart + curlWidth * 0.5f, pageHeight * 0.02f,
-                    curlEnd, 0f
-                )
-                lineTo(curlEnd, pageHeight)
-                cubicTo(
-                    curlStart + curlWidth * 0.5f, pageHeight - pageHeight * 0.02f,
-                    curlStart + curlWidth * 0.3f, pageHeight,
-                    curlStart, pageHeight
-                )
+                moveTo(midX, 0f)
+                lineTo((midX + cylinderW).coerceAtMost(pageWidth), 0f)
+                lineTo((midX + cylinderW).coerceAtMost(pageWidth), pageHeight)
+                lineTo(midX, pageHeight)
                 close()
             } else {
-                val curlStart = foldX
-                val curlEnd = (foldX - curlWidth).coerceAtLeast(0f)
-                moveTo(curlStart, 0f)
-                cubicTo(
-                    curlStart - curlWidth * 0.3f, 0f,
-                    curlStart - curlWidth * 0.5f, pageHeight * 0.02f,
-                    curlEnd, 0f
-                )
-                lineTo(curlEnd, pageHeight)
-                cubicTo(
-                    curlStart - curlWidth * 0.5f, pageHeight - pageHeight * 0.02f,
-                    curlStart - curlWidth * 0.3f, pageHeight,
-                    curlStart, pageHeight
-                )
+                moveTo((midX - cylinderW).coerceAtLeast(0f), 0f)
+                lineTo(midX, 0f)
+                lineTo(midX, pageHeight)
+                lineTo((midX - cylinderW).coerceAtLeast(0f), pageHeight)
                 close()
             }
         }
 
-        // Shadow path along the fold line
-        val shadowWidth = curlRadius * 2f + 20f
-        val curlShadowPath = Path().apply {
-            if (isForward) {
-                moveTo(foldX - shadowWidth / 2, 0f)
-                lineTo(foldX + shadowWidth / 2, 0f)
-                lineTo(foldX + shadowWidth / 2, pageHeight)
-                lineTo(foldX - shadowWidth / 2, pageHeight)
-                close()
-            } else {
-                moveTo(foldX - shadowWidth / 2, 0f)
-                lineTo(foldX + shadowWidth / 2, 0f)
-                lineTo(foldX + shadowWidth / 2, pageHeight)
-                lineTo(foldX - shadowWidth / 2, pageHeight)
-                close()
-            }
+        // Shadow along fold line
+        val shadowW = cylinderW * 1.5f + 15f
+        val shadowPath = Path().apply {
+            moveTo(midX - shadowW / 2, 0f)
+            lineTo(midX + shadowW / 2, 0f)
+            lineTo(midX + shadowW / 2, pageHeight)
+            lineTo(midX - shadowW / 2, pageHeight)
+            close()
         }
 
-        // Back of page clip (reflected)
-        val backClipPath = Path().apply {
-            if (isForward) {
-                val backX = foldX + curlWidth
-                moveTo(foldX, 0f)
-                lineTo(backX.coerceAtMost(pageWidth), 0f)
-                lineTo(backX.coerceAtMost(pageWidth), pageHeight)
-                lineTo(foldX, pageHeight)
-                close()
-            } else {
-                val backX = foldX - curlWidth
-                moveTo(backX.coerceAtLeast(0f), 0f)
-                lineTo(foldX, 0f)
-                lineTo(foldX, pageHeight)
-                lineTo(backX.coerceAtLeast(0f), pageHeight)
-                close()
-            }
+        // Reflection matrix across fold line for back of page
+        val matrix = Matrix().apply {
+            reset()
+            translate(midX, midY)
+            scale(if (isForward) -0.95f else 0.95f, 1f)
+            translate(-midX, -midY)
         }
 
-        return CurlMesh(
-            frontClipPath = frontClipPath,
-            curlPath = curlPath,
-            curlShadowPath = curlShadowPath,
-            backClipPath = backClipPath,
-            curlTipX = foldX,
-            curlTipY = pageHeight / 2f,
-            foldLineAngle = 0f,
-            shadowAlpha = shadowAlpha
+        val shadowAlpha = (0.35f * (1f - progress)).coerceIn(0.05f, 0.4f)
+
+        return CurlMeshResult(
+            frontClipPath = frontPath,
+            backClipPath = backPath,
+            curlShadowPath = shadowPath,
+            foldLineStart = lineStart,
+            foldLineEnd = lineEnd,
+            backMatrix = matrix,
+            shadowAlpha = shadowAlpha,
+            cylinderWidth = cylinderW
         )
-    }
-
-    /**
-     * Convert a drag X position to a curl amount (0..1).
-     */
-    fun dragToCurlAmount(dragX: Float, startX: Float, pageWidth: Float, isForward: Boolean): Float {
-        return if (isForward) {
-            val delta = startX - dragX
-            (delta / pageWidth).coerceIn(0f, 1f)
-        } else {
-            val delta = dragX - startX
-            (delta / pageWidth).coerceIn(0f, 1f)
-        }
-    }
-
-    /**
-     * Determine if the curl should complete or cancel based on the amount.
-     */
-    fun shouldCompleteTurn(curlAmount: Float, velocity: Float = 0f): Boolean {
-        return curlAmount > 0.35f || abs(velocity) > 500f
     }
 }
