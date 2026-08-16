@@ -1,0 +1,1361 @@
+You are taking over an existing Android application called:
+
+FLIP BOOK
+
+Package:
+com.pranav.flipbook
+
+The project has already been developed and imported from my GitHub repository into this Replit workspace.
+
+IMPORTANT:
+
+DO NOT rebuild the application from scratch.
+
+DO NOT replace the entire project with a new template.
+
+DO NOT throw away working functionality.
+
+Instead, act as a senior Android engineer, UI/UX designer, graphics/animation engineer, audio engineer, QA engineer, and code reviewer taking over an existing production codebase.
+
+Your task is to:
+
+1. AUDIT THE EXISTING APPLICATION
+2. FIND THE ROOT CAUSES OF THE CURRENT PROBLEMS
+3. FIX THEM PROPERLY
+4. COMPLETELY REDESIGN THE VISUAL EXPERIENCE
+5. REPLACE THE CURRENT BAD PAGE-CURL IMPLEMENTATION
+6. TEST EVERYTHING
+7. FIX ANY OTHER BUGS OR NONFUNCTIONAL FEATURES YOU discover
+8. Leave the project in a genuinely usable, polished, stable state.
+
+Do not stop at "the code compiles."
+
+The application must actually work.
+
+============================================================
+PART 1 — FIRST AUDIT THE EXISTING PROJECT
+============================================================
+
+Before modifying anything, inspect the entire repository.
+
+Understand:
+
+- Gradle configuration
+- AndroidManifest.xml
+- package structure
+- MainActivity
+- navigation
+- Room database
+- DAOs
+- repositories
+- ViewModels
+- Compose screens
+- PDF rendering
+- PDF caching
+- page-turn implementation
+- gestures
+- reader state
+- DataStore/settings
+- audio implementation
+- library
+- bookmarks
+- notes
+- highlights
+- collections
+- statistics
+- achievements
+- goals
+- themes
+- backup/restore
+- thumbnails
+- PDF search
+- PDF metadata
+- all utility classes
+
+Search the codebase for:
+
+- TODO
+- FIXME
+- Coming Soon
+- placeholder
+- empty callbacks
+- unused settings
+- hardcoded values
+- fake statistics
+- fake UI controls
+- unused state variables
+- settings that are saved but never consumed
+- audio players that are never triggered
+- animation states that are never used
+- dead navigation routes
+- duplicate implementations
+- commented-out code
+- debug code
+- swallowed exceptions
+- silent failures
+
+Do not trust documentation.
+
+Inspect the actual source code.
+
+============================================================
+PART 2 — DO NOT DESTROY WORKING FUNCTIONALITY
+============================================================
+
+The existing application already has substantial functionality.
+
+Preserve working:
+
+- PDF importing
+- PDF rendering
+- Room persistence
+- reading progress
+- bookmarks
+- notes
+- collections
+- search
+- statistics
+- navigation
+- thumbnails
+- metadata
+- offline behavior
+
+unless the audit discovers a real defect.
+
+Refactor only when necessary.
+
+Do not rewrite working components just for stylistic reasons.
+
+However, the following three areas MUST receive major changes:
+
+1. AUDIO SYSTEM
+2. READING MODES / THEMES
+3. PAGE-CURL ANIMATION
+
+The UI must also receive a major redesign.
+
+============================================================
+PART 3 — BUG #1: ALL SOUND FEATURES ARE BROKEN
+============================================================
+
+CURRENT PROBLEM:
+
+Anywhere the application mentions sound, audio does not actually work.
+
+This includes:
+
+- page-turn sound
+- ambient sounds
+- rain
+- fireplace
+- café
+- forest
+- white noise
+- any other sound-related option
+
+Do not simply make the switches visually change.
+
+Make the entire audio system genuinely functional.
+
+============================================================
+PART 4 — AUDIT THE AUDIO ARCHITECTURE
+============================================================
+
+Find the existing audio implementation.
+
+Determine:
+
+- what audio library is being used
+- where audio files are stored
+- how audio files are loaded
+- how audio players are initialized
+- when players are created
+- when players are released
+- whether the required audio resources actually exist
+- whether resource IDs are correct
+- whether the application has valid audio assets
+- whether the audio player is receiving events
+- whether settings are actually connected to playback
+- whether Android lifecycle is breaking playback
+- whether audio focus is causing playback to stop
+- whether exceptions are being swallowed
+
+Fix the root cause.
+
+Do not hide the problem with UI changes.
+
+============================================================
+PART 5 — PAGE TURN SOUND
+============================================================
+
+Implement a real page-turn sound.
+
+The sound must:
+
+- be stored locally
+- work completely offline
+- be lightweight
+- play only when an actual page turn occurs
+- NOT play merely because pageIndex changed due to recomposition
+- NOT play repeatedly during animation frames
+- NOT play when a page-turn animation is cancelled
+- support enable/disable
+- support volume control
+
+Correct event flow:
+
+USER INITIATES PAGE TURN
+        ↓
+PAGE TURN ANIMATION STARTS
+        ↓
+PAGE TURN IS VALID
+        ↓
+PLAY ONE PAGE-TURN SOUND
+        ↓
+ANIMATION COMPLETES
+        ↓
+COMMIT NEW PAGE
+
+Do not attach audio playback to recomposition.
+
+Do not attach audio playback to every drag event.
+
+Do not play the sound multiple times during a single page turn.
+
+============================================================
+PART 6 — AMBIENT AUDIO
+============================================================
+
+Implement fully functional offline ambient audio.
+
+Available options should include:
+
+- Rain
+- Fireplace
+- Café
+- Forest
+- White Noise
+
+The user must be able to:
+
+- select ambient sound
+- play
+- pause
+- stop
+- change volume
+- disable ambient audio
+- switch between sounds
+
+Audio should loop seamlessly.
+
+Changing ambient sound should stop the previous sound and start the selected one.
+
+Do not allow multiple ambient players to run simultaneously.
+
+============================================================
+PART 7 — AUDIO LIFECYCLE
+============================================================
+
+Handle:
+
+- entering reader
+- leaving reader
+- application backgrounding
+- application foregrounding
+- reader closing
+- changing books
+- changing ambient sound
+- disabling audio
+- device rotation
+
+Release resources correctly.
+
+Avoid:
+
+- memory leaks
+- multiple players
+- overlapping sounds
+- crashes
+- audio continuing after leaving the reader unintentionally
+
+============================================================
+PART 8 — AUDIO ASSETS
+============================================================
+
+Verify that the required audio assets actually exist.
+
+If they are missing or corrupted:
+
+add appropriate lightweight local audio assets or generate suitable simple local audio resources.
+
+Do NOT rely on:
+
+- internet streaming
+- remote URLs
+- cloud audio
+- external APIs
+
+The application must remain fully offline.
+
+Use royalty-free/local assets.
+
+Keep the application size reasonable.
+
+============================================================
+PART 9 — AUDIO SETTINGS MUST ACTUALLY WORK
+============================================================
+
+Every audio setting must have a complete chain:
+
+Settings UI
+    ↓
+Stored preference
+    ↓
+ViewModel/state
+    ↓
+Audio manager
+    ↓
+Actual playback
+
+Test each one.
+
+If a setting cannot be made functional:
+
+REMOVE IT.
+
+Do not leave fake switches.
+
+============================================================
+PART 10 — BUG #2: READING MODES DO NOTHING
+============================================================
+
+CURRENT PROBLEM:
+
+The application provides reading modes/themes, but changing them does not visibly change the reading experience.
+
+This is unacceptable.
+
+Audit every existing reading mode.
+
+Possible modes include:
+
+- Light
+- Dark
+- Sepia
+- Warm
+- Black & White
+- Custom
+
+Do not assume the setting works because the value is stored.
+
+Verify the actual reader rendering.
+
+============================================================
+PART 11 — READING MODE ARCHITECTURE
+============================================================
+
+Create a single authoritative ReaderAppearance configuration.
+
+For example, conceptually:
+
+ReaderAppearance:
+
+- mode
+- page background treatment
+- tint
+- contrast
+- brightness overlay
+- warmth
+- grayscale
+- margins
+- controls appearance
+
+The exact implementation is up to you.
+
+The important requirement is:
+
+CHANGING A READING MODE MUST IMMEDIATELY CHANGE THE READER.
+
+============================================================
+PART 12 — LIGHT MODE
+============================================================
+
+Light mode:
+
+- natural white/paper page
+- normal contrast
+- neutral appearance
+
+============================================================
+PART 13 — DARK MODE
+============================================================
+
+Dark reading mode should provide a genuinely dark reading environment.
+
+Do not simply change the Settings screen to dark.
+
+The reader itself must change.
+
+Depending on the PDF rendering limitations, use an appropriate image-processing/color treatment.
+
+The PDF page must visibly change.
+
+Avoid making text unreadable.
+
+============================================================
+PART 14 — SEPIA MODE
+============================================================
+
+Apply a warm sepia reading treatment to the actual PDF page.
+
+The page should visually resemble aged paper.
+
+Do not merely change the surrounding background.
+
+============================================================
+PART 15 — WARM MODE
+============================================================
+
+Warm mode should apply a subtle warm/yellow/orange tint.
+
+It should be comfortable for long reading sessions.
+
+Do not overdo the tint.
+
+============================================================
+PART 16 — BLACK & WHITE MODE
+============================================================
+
+Apply an actual grayscale treatment to the PDF rendering.
+
+The page itself should become monochrome.
+
+============================================================
+PART 17 — MODE CHANGES MUST NOT RESET THE BOOK
+============================================================
+
+Changing appearance must NOT:
+
+- reset page index
+- reload the book unnecessarily
+- lose zoom
+- lose bookmarks
+- restart reading progress
+- restart the page from page 1
+
+Only the visual treatment should change.
+
+============================================================
+PART 18 — BRIGHTNESS
+============================================================
+
+If brightness is provided:
+
+Make it actually work.
+
+Prefer an application-level reader overlay.
+
+The slider must visibly affect the reading area.
+
+Persist the setting.
+
+============================================================
+PART 19 — MARGINS
+============================================================
+
+If margins are provided:
+
+Make them actually affect the page layout.
+
+Support:
+
+Small
+Medium
+Large
+
+Changing the margin must visibly change the page display.
+
+============================================================
+PART 20 — ANIMATION SPEED
+============================================================
+
+If animation speed is provided:
+
+It must actually affect page-turn animation.
+
+Support:
+
+Very Slow
+Slow
+Normal
+Fast
+Very Fast
+
+Do not simply store the selected value.
+
+Connect it to the actual animation engine.
+
+============================================================
+PART 21 — BUG #3: COMPLETE UI REDESIGN
+============================================================
+
+CURRENT PROBLEM:
+
+The current application looks dull, flat, and uninspiring.
+
+Perform a COMPLETE visual redesign.
+
+Do NOT merely change a few colors.
+
+Do NOT simply add gradients.
+
+Do NOT put glassmorphism everywhere.
+
+Create a coherent premium visual identity.
+
+The application should feel like a premium digital library / luxury reading application.
+
+============================================================
+PART 22 — NEW VISUAL DIRECTION
+============================================================
+
+Create a sophisticated book-inspired design system.
+
+Suggested visual direction:
+
+Primary:
+Deep Espresso / Dark Coffee
+
+Secondary:
+Warm Terracotta / Burnt Copper
+
+Accent:
+Muted Gold / Antique Gold
+
+Background:
+Warm Ivory / Soft Cream
+
+Surface:
+Paper Cream
+
+Dark surface:
+Deep Brown / Charcoal Brown
+
+Text:
+Warm White / Dark Espresso depending on mode
+
+Use smart combinations.
+
+Do NOT use extremely bright neon colors.
+
+Do NOT make everything brown.
+
+Use color hierarchy carefully.
+
+The UI should feel:
+
+- elegant
+- intelligent
+- warm
+- premium
+- modern
+- calm
+- literary
+
+============================================================
+PART 23 — COLOR SYSTEM
+============================================================
+
+Create a centralized Material 3 color system.
+
+Do not scatter hardcoded colors throughout the application.
+
+Define:
+
+- Primary
+- Secondary
+- Tertiary
+- Background
+- Surface
+- SurfaceVariant
+- OnPrimary
+- OnBackground
+- OnSurface
+- Outline
+- Error
+
+Provide both:
+
+Light theme
+Dark theme
+
+Ensure accessible contrast.
+
+============================================================
+PART 24 — LIBRARY REDESIGN
+============================================================
+
+Redesign the home/library screen.
+
+Make it feel like entering a personal digital library.
+
+Suggested layout:
+
+TOP:
+
+Greeting / Library title
+
+Search
+
+MAIN:
+
+Continue Reading
+
+Recently Added
+
+Favorites
+
+Collections
+
+All Books
+
+Use:
+
+- beautiful book cards
+- proper cover aspect ratios
+- subtle depth
+- progress indicators
+- meaningful typography
+- smooth animations
+
+Avoid oversized empty cards.
+
+============================================================
+PART 25 — BOOK CARD DESIGN
+============================================================
+
+Book cards should look like books.
+
+Display:
+
+- cover
+- title
+- author when available
+- progress
+- current page
+- favorite indicator
+
+Add subtle interaction:
+
+- press animation
+- elevation change
+- gentle scale
+- smooth navigation
+
+Do not overanimate.
+
+============================================================
+PART 26 — EMPTY STATES
+============================================================
+
+Create premium empty states.
+
+Examples:
+
+No books:
+
+"Your bookshelf is waiting."
+
+"Import your first book to begin reading."
+
+No bookmarks:
+
+"No bookmarks yet."
+
+No collections:
+
+"Create your first collection."
+
+Use meaningful illustrations/icons.
+
+Do not make empty states look like error screens.
+
+============================================================
+PART 27 — SETTINGS REDESIGN
+============================================================
+
+The current Settings screen has too many options.
+
+Do NOT keep every existing setting.
+
+Audit each one.
+
+If it works and is useful:
+keep it.
+
+If it doesn't work:
+fix it.
+
+If it cannot be implemented correctly:
+remove it.
+
+Settings should be grouped into:
+
+READER
+- Reading mode
+- Page transition
+- Animation speed
+- Margins
+- Auto-hide
+- Focus mode
+
+AUDIO
+- Page-turn sound
+- Ambient sound
+- Volume
+
+LIBRARY
+- Grid/List/Bookshelf
+- Sorting
+
+STORAGE
+- Cache usage
+- Clear cache
+
+DATA
+- Backup
+- Restore
+
+Keep Settings clean.
+
+============================================================
+PART 28 — READER SCREEN REDESIGN
+============================================================
+
+The reader is the most important screen.
+
+The PDF page should dominate the screen.
+
+Controls should be subtle.
+
+Top:
+
+Back
+Book title
+Bookmark
+More
+
+Bottom:
+
+Page number
+Progress
+Page slider
+
+Controls should auto-hide.
+
+The reader should feel immersive.
+
+============================================================
+PART 29 — MOST IMPORTANT TASK: REPLACE PAGE CURL
+============================================================
+
+The existing page curl animation is unacceptable.
+
+Do NOT patch it.
+
+Do NOT simply adjust its duration.
+
+Do NOT simply adjust its rotation.
+
+Do NOT merely change Bézier control points.
+
+Replace the visual implementation with a genuinely convincing physical page-turn system.
+
+============================================================
+PART 30 — WHAT THE PAGE CURL MUST LOOK LIKE
+============================================================
+
+Imagine a physical hardcover book.
+
+The current page is a sheet of paper.
+
+When the user drags from the right:
+
+The right side of the paper lifts.
+
+The page bends toward the center.
+
+The fold moves across the page.
+
+The back side of the paper becomes visible.
+
+A curved shadow appears under the folded sheet.
+
+The page progressively covers/reveals the underlying page.
+
+The page follows the finger.
+
+When released:
+
+The page either:
+
+A) completes the turn
+
+or
+
+B) falls back into its original position.
+
+The final animation must look like physical paper.
+
+============================================================
+PART 31 — PAGE CURL REQUIREMENTS
+============================================================
+
+Implement:
+
+- real curved fold
+- perspective
+- front page
+- page underside
+- next page behind it
+- previous page behind it
+- dynamic shadow
+- curved clipping
+- fold line
+- drag-following
+- velocity
+- completion threshold
+- cancellation threshold
+- realistic easing
+- smooth settling
+
+The visual effect should be much closer to a physical page than to a card animation.
+
+============================================================
+PART 32 — DO NOT USE THESE AS THE MAIN EFFECT
+============================================================
+
+DO NOT use:
+
+- horizontal slide
+- simple rotation
+- crossfade
+- scale
+- card flip
+- generic 3D flip
+- ViewPager animation
+- AnimatedContent as the main page effect
+
+These are not acceptable replacements for the page curl.
+
+============================================================
+PART 33 — FORWARD PAGE TURN
+============================================================
+
+Forward turn:
+
+User drags from right → left.
+
+The page curls from the right edge.
+
+The folded portion progresses toward the left.
+
+The next page remains underneath.
+
+The current page progressively disappears behind the curl.
+
+The shadow moves with the folded page.
+
+When completed:
+
+new page becomes current.
+
+============================================================
+PART 34 — BACKWARD PAGE TURN
+============================================================
+
+Backward turn:
+
+User drags from left → right.
+
+The previous page should visually become the page being revealed.
+
+The animation should feel physically different from a forward turn.
+
+Do not simply reverse a generic slide animation.
+
+============================================================
+PART 35 — EDGE TAPS
+============================================================
+
+Support:
+
+Tap right edge → forward.
+
+Tap left edge → backward.
+
+Edge taps should trigger the same page-curl engine.
+
+They should NOT use a separate cheap animation.
+
+============================================================
+PART 36 — SWIPE
+============================================================
+
+Swipe gestures must use the same page-curl engine.
+
+One swipe should result in:
+
+ONE page turn.
+
+Never:
+
+page 5 → page 6 → page 7
+
+from one accidental gesture.
+
+============================================================
+PART 37 — PAGE TURN STATE MACHINE
+============================================================
+
+Use a robust state machine.
+
+Example:
+
+IDLE
+
+DRAGGING_FORWARD
+
+COMPLETING_FORWARD
+
+CANCELING_FORWARD
+
+DRAGGING_BACKWARD
+
+COMPLETING_BACKWARD
+
+CANCELING_BACKWARD
+
+While an animation is active:
+
+ignore new page-turn gestures.
+
+Do not change pageIndex repeatedly.
+
+Only commit the logical page after successful completion.
+
+============================================================
+PART 38 — PAGE RENDERING
+============================================================
+
+Do not render PDF pages during the animation.
+
+Use:
+
+previous bitmap
+current bitmap
+next bitmap
+
+preloaded in advance.
+
+The page curl renderer should operate on these bitmaps.
+
+============================================================
+PART 39 — PERFORMANCE
+============================================================
+
+The new page curl must remain smooth.
+
+Avoid expensive operations on the UI thread.
+
+Use:
+
+- bitmap caching
+- adjacent-page preloading
+- background PDF rendering
+- cancellation
+- limited cache
+- appropriate bitmap resolution
+
+Test rapid page flipping.
+
+============================================================
+PART 40 — UI ANIMATION
+============================================================
+
+After fixing page curl:
+
+Add subtle UI animations:
+
+- library entry
+- book card press
+- collection opening
+- settings changes
+- search
+- favorite toggles
+- bookmark toggles
+
+Do not animate everything.
+
+Premium design means controlled animation.
+
+============================================================
+PART 41 — OTHER BUGS
+============================================================
+
+While auditing and testing the application, if you discover ANY other problem, fix it.
+
+Examples:
+
+- crashes
+- broken navigation
+- incorrect progress
+- incorrect statistics
+- database inconsistencies
+- settings not applied
+- audio failures
+- broken gestures
+- memory leaks
+- stale state
+- recomposition bugs
+- UI overflow
+- landscape issues
+- broken back button
+- incorrect page count
+- thumbnail bugs
+- search bugs
+- persistence bugs
+- missing permissions
+- URI failures
+- cache problems
+
+Do not ignore discovered problems simply because they were not explicitly mentioned.
+
+============================================================
+PART 42 — ERROR HANDLING
+============================================================
+
+Test:
+
+- corrupt PDFs
+- deleted PDFs
+- revoked URI permissions
+- invalid pages
+- large PDFs
+- unsupported files
+- rendering failures
+- missing audio assets
+- database errors
+
+The application must remain stable.
+
+Show meaningful messages.
+
+Do not silently fail.
+
+============================================================
+PART 43 — LARGE PDF PERFORMANCE
+============================================================
+
+Test:
+
+100-page PDF
+500-page PDF
+1000-page PDF
+5000+ page PDF
+
+Verify:
+
+- opening
+- page rendering
+- page flipping
+- thumbnails
+- search
+- progress
+- memory usage
+
+No:
+
+- ANR
+- OutOfMemoryError
+- UI freeze
+- severe page-turn lag
+
+============================================================
+PART 44 — OFFLINE REQUIREMENT
+============================================================
+
+Everything must work without internet.
+
+Do not introduce:
+
+- cloud APIs
+- remote audio
+- online analytics
+- tracking
+- advertisements
+- backend
+- login
+- account system
+
+All PDFs and reading data remain local.
+
+============================================================
+PART 45 — DATASTORE / ROOM
+============================================================
+
+Use DataStore for preferences.
+
+Use Room for relational application data.
+
+Make sure settings actually flow from:
+
+UI
+→ ViewModel
+→ DataStore
+→ reader/audio/library
+→ visible behavior.
+
+============================================================
+PART 46 — TEST EVERY SETTING
+============================================================
+
+Create a settings verification matrix.
+
+For EVERY visible setting:
+
+SETTING
+→ expected behavior
+→ actual behavior
+→ fixed/not fixed
+
+There must be no dead settings.
+
+If a setting has no meaningful implementation:
+
+REMOVE IT.
+
+============================================================
+PART 47 — TEST EVERY AUDIO OPTION
+============================================================
+
+Verify:
+
+Page turn sound:
+ON → sound plays.
+
+Page turn sound:
+OFF → no sound.
+
+Ambient Rain:
+plays and loops.
+
+Ambient Fireplace:
+plays and loops.
+
+Ambient Café:
+plays and loops.
+
+Ambient Forest:
+plays and loops.
+
+Ambient White Noise:
+plays and loops.
+
+Switch Rain → Fireplace:
+Rain stops.
+Fireplace starts.
+
+Leave reader:
+ambient audio stops or behaves according to clearly defined app behavior.
+
+No duplicate playback.
+
+============================================================
+PART 48 — TEST READING MODES
+============================================================
+
+Verify:
+
+Light → visible change.
+
+Dark → visible change.
+
+Sepia → visible change.
+
+Warm → visible change.
+
+Black & White → visible change.
+
+Changing mode must NOT:
+
+- reset page
+- lose progress
+- lose bookmark
+- close book
+- reset zoom unnecessarily
+
+============================================================
+PART 49 — TEST PAGE CURL
+============================================================
+
+Perform:
+
+- forward swipe
+- backward swipe
+- edge tap forward
+- edge tap backward
+- short drag cancellation
+- long drag completion
+- fast swipe
+- slow drag
+- rapid consecutive turns
+- turn at first page
+- turn at last page
+
+Verify:
+
+NO oscillation.
+
+NO accidental double page turns.
+
+NO freezing.
+
+NO visible page jumping.
+
+NO cheap-looking slide.
+
+============================================================
+PART 50 — CODE QUALITY
+============================================================
+
+After implementation:
+
+Remove:
+
+- dead code
+- unused imports
+- unused dependencies
+- obsolete page curl code
+- debug logs
+- fake settings
+- fake audio options
+- placeholder UI
+- duplicate classes
+
+Keep architecture clean.
+
+============================================================
+PART 51 — BUILD VALIDATION
+============================================================
+
+After each major stage:
+
+1. build
+2. inspect errors
+3. fix
+4. run
+5. test
+6. continue
+
+Do NOT wait until the end.
+
+The final project must build successfully.
+
+============================================================
+PART 52 — FINAL ACCEPTANCE CRITERIA
+============================================================
+
+Do not consider the task complete until all of these are true:
+
+AUDIO:
+✓ Page-turn sound works.
+✓ Ambient audio works.
+✓ Audio toggles work.
+✓ Audio volume works.
+✓ Audio lifecycle is correct.
+
+READING MODES:
+✓ Light works.
+✓ Dark works.
+✓ Sepia works.
+✓ Warm works.
+✓ Black & White works.
+✓ Brightness works.
+✓ Margins work.
+✓ Animation speed works.
+
+UI:
+✓ Complete visual redesign.
+✓ Premium color system.
+✓ Consistent typography.
+✓ Better library.
+✓ Better book cards.
+✓ Better settings.
+✓ Better reader.
+✓ Better empty states.
+✓ Responsive layouts.
+
+PAGE CURL:
+✓ Physical-looking page curl.
+✓ Finger-following drag.
+✓ Forward turn.
+✓ Backward turn.
+✓ Dynamic shadow.
+✓ Page underside.
+✓ Perspective.
+✓ Completion/cancellation.
+✓ No oscillation.
+✓ No double turns.
+✓ Smooth performance.
+
+OTHER:
+✓ PDF library works.
+✓ Reading progress works.
+✓ Bookmarks work.
+✓ Notes work.
+✓ Highlights work.
+✓ Search works.
+✓ Collections work.
+✓ Statistics work.
+✓ Navigation works.
+✓ Offline behavior works.
+✓ Large PDFs remain usable.
+
+============================================================
+PART 53 — VERY IMPORTANT FINAL INSTRUCTION
+============================================================
+
+Do not tell me:
+
+"I implemented the feature."
+
+unless you have actually verified that it works.
+
+Do not judge success by compilation alone.
+
+The final standard is:
+
+THE APP MUST ACTUALLY FEEL GOOD TO USE.
+
+The page curl must visually resemble turning a real paper page.
+
+The audio must actually play.
+
+The reading modes must actually change the reader.
+
+The UI must look premium.
+
+The settings must actually control real behavior.
+
+Any other bugs you discover must be fixed.
+
+Start by auditing the existing repository and identifying the root causes.
+
+Then implement the fixes systematically.
+
+Do not rebuild the application from scratch.
+
+Do not remove working functionality.
+
+Make this the final polished version of Flip Book.
