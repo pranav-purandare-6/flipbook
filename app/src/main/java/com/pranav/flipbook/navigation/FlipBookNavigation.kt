@@ -9,8 +9,10 @@ import androidx.navigation.navArgument
 import com.pranav.flipbook.ui.bookmarks.BookmarksScreen
 import com.pranav.flipbook.ui.collections.CollectionDetailScreen
 import com.pranav.flipbook.ui.collections.CollectionsScreen
+import com.pranav.flipbook.ui.collections.ReadingListsScreen
 import com.pranav.flipbook.ui.info.PdfInfoScreen
 import com.pranav.flipbook.ui.library.LibraryScreen
+import com.pranav.flipbook.ui.notes.FavoriteQuotesScreen
 import com.pranav.flipbook.ui.notes.NotesHighlightsScreen
 import com.pranav.flipbook.ui.reader.ReaderScreen
 import com.pranav.flipbook.ui.settings.SettingsScreen
@@ -31,6 +33,8 @@ object Routes {
     const val PDF_INFO = "pdf_info/{bookId}"
     const val GOALS = "goals"
     const val ACHIEVEMENTS = "achievements"
+    const val READING_LISTS = "reading_lists"
+    const val FAVORITE_QUOTES = "favorite_quotes"
 
     fun reader(bookId: Long) = "reader/$bookId"
     fun bookmarksForBook(bookId: Long) = "bookmarks/$bookId"
@@ -51,6 +55,8 @@ fun FlipBookNavGraph(navController: NavHostController) {
                 onSettingsClick = { navController.navigate(Routes.SETTINGS) },
                 onStatisticsClick = { navController.navigate(Routes.STATISTICS) },
                 onCollectionsClick = { navController.navigate(Routes.COLLECTIONS) },
+                onReadingListsClick = { navController.navigate(Routes.READING_LISTS) },
+                onFavoriteQuotesClick = { navController.navigate(Routes.FAVORITE_QUOTES) },
                 onBookInfoClick = { bookId -> navController.navigate(Routes.pdfInfo(bookId)) }
             )
         }
@@ -157,6 +163,20 @@ fun FlipBookNavGraph(navController: NavHostController) {
 
         composable(Routes.ACHIEVEMENTS) {
             AchievementsScreen(onBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.READING_LISTS) {
+            ReadingListsScreen(
+                onBack = { navController.popBackStack() },
+                onBookClick = { bookId -> navController.navigate(Routes.reader(bookId)) }
+            )
+        }
+
+        composable(Routes.FAVORITE_QUOTES) {
+            FavoriteQuotesScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToPage = { bookId, _ -> navController.navigate(Routes.reader(bookId)) }
+            )
         }
     }
 }

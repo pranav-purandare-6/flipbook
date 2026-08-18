@@ -18,6 +18,9 @@ interface FavoriteQuoteDao {
     @Query("SELECT * FROM favorite_quotes ORDER BY createdDate DESC")
     fun getAllQuotes(): Flow<List<FavoriteQuoteEntity>>
 
+    @Query("SELECT * FROM favorite_quotes ORDER BY createdDate DESC")
+    suspend fun getAllQuotesSnapshot(): List<FavoriteQuoteEntity>
+
     @Query("SELECT * FROM favorite_quotes WHERE bookId = :bookId ORDER BY page ASC")
     fun getQuotesForBook(bookId: Long): Flow<List<FavoriteQuoteEntity>>
 

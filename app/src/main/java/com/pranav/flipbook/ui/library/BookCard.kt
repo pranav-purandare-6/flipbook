@@ -7,10 +7,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -142,7 +151,7 @@ fun BookCard(
 
                 if (book.pageCount > 0) {
                     Text(
-                        text = "${book.readingProgress.toProgressPercent()}% · ${book.currentPage + 1}/${book.pageCount}",
+                        text = "${book.readingProgress.toProgressPercent()}% - ${book.currentPage + 1}/${book.pageCount}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -165,8 +174,14 @@ fun BookListItem(
     book: BookEntity,
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit,
+    onRemoveClick: (() -> Unit)? = null,
+    onInfoClick: (() -> Unit)? = null,
+    onRenameClick: (() -> Unit)? = null,
+    onDeleteClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -245,7 +260,7 @@ fun BookListItem(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${book.readingProgress.toProgressPercent()}% · Page ${book.currentPage + 1} of ${book.pageCount}",
+                        text = "${book.readingProgress.toProgressPercent()}% - Page ${book.currentPage + 1} of ${book.pageCount}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -259,6 +274,45 @@ fun BookListItem(
                     contentDescription = "Favorite",
                     tint = if (book.isFavorite) Color(0xFFE57373) else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            if (onRemoveClick != null) {
+                IconButton(onClick = onRemoveClick) {
+                    Icon(
+                        imageVector = Icons.Filled.RemoveCircleOutline,
+                        contentDescription = "Remove",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            if (onInfoClick != null || onRenameClick != null || onDeleteClick != null) {
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, "More")
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        if (onInfoClick != null) {
+                            DropdownMenuItem(
+                                text = { Text("PDF Info") },
+                                onClick = { showMenu = false; onInfoClick() },
+                                leadingIcon = { Icon(Icons.Default.Info, null) }
+                            )
+                        }
+                        if (onRenameClick != null) {
+                            DropdownMenuItem(
+                                text = { Text("Rename") },
+                                onClick = { showMenu = false; onRenameClick() },
+                                leadingIcon = { Icon(Icons.Default.Edit, null) }
+                            )
+                        }
+                        if (onDeleteClick != null) {
+                            DropdownMenuItem(
+                                text = { Text("Remove") },
+                                onClick = { showMenu = false; onDeleteClick() },
+                                leadingIcon = { Icon(Icons.Default.Delete, null) }
+                            )
+                        }
+                    }
+                }
             }
         }
     }

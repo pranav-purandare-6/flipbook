@@ -105,6 +105,8 @@ class ReadingSessionRepository(private val sessionDao: ReadingSessionDao) {
         return longest
     }
 
+    suspend fun getReadingDays(): List<Long> = sessionDao.getReadingDays()
+
     suspend fun getSessionsBetween(startTime: Long, endTime: Long): List<ReadingSessionEntity> =
         sessionDao.getSessionsBetween(startTime, endTime)
 }

@@ -2,54 +2,69 @@ package com.pranav.flipbook.audio
 
 import android.content.Context
 import android.media.MediaPlayer
+import java.io.File
 
 class AmbientSoundPlayer(private val context: Context) {
 
     private var mediaPlayer: MediaPlayer? = null
-    private var currentSound: String = "none"
+    private var activeSound: String = "none"
 
-    fun playAmbientSound(soundName: String, volume: Float = 0.5f) {
-        if (soundName == currentSound && mediaPlayer?.isPlaying == true) {
+    @Synchronized
+    fun play(soundName: String, volume: Float) {
+        val normalized = soundName.lowercase()
+        if (normalized == "none") {
+            stop()
+            return
+        }
+
+        if (normalized == activeSound && mediaPlayer?.isPlaying == true) {
             mediaPlayer?.setVolume(volume, volume)
             return
         }
 
-        stop()
-        currentSound = soundName
-
-        if (soundName == "none") return
+        stopInternal()
 
         try {
-            // Prepared for raw resources if added, fallback to silent loop safely
-            val resId = context.resources.getIdentifier(
-                "ambient_$soundName", "raw", context.packageName
-            )
-            if (resId != 0) {
-                mediaPlayer = MediaPlayer.create(context, resId)?.apply {
-                    isLooping = true
-                    setVolume(volume, volume)
-                    start()
-                }
+            val file: File = ProceduralSoundGenerator.ensureAmbientLoop(context.cacheDir, normalized)
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(file.absolutePath)
+                isLooping = true
+                setVolume(volume, volume)
+                prepare()
+                start()
             }
+            activeSound = normalized
         } catch (e: Exception) {
-            e.printStackTrace()
+            stopInternal()
         }
     }
 
+    @Synchronized
     fun setVolume(volume: Float) {
-        mediaPlayer?.setVolume(volume, volume)
+        val v = volume.coerceIn(0f, 1f)
+        mediaPlayer?.setVolume(v, v)
     }
 
+    @Synchronized
     fun stop() {
+        stopInternal()
+    }
+
+    @Synchronized
+    fun release() {
+        stopInternal()
+    }
+
+    private fun stopInternal() {
         try {
             mediaPlayer?.stop()
+        } catch (_: Exception) {
+        }
+        try {
             mediaPlayer?.release()
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
         mediaPlayer = null
-        currentSound = "none"
-    }
-
-    fun release() {
-        stop()
+        activeSound = "none"
     }
 }

@@ -1,6 +1,7 @@
 package com.pranav.flipbook
 
 import android.app.Application
+import com.pranav.flipbook.audio.AudioManager
 import com.pranav.flipbook.data.database.FlipBookDatabase
 
 class FlipBookApplication : Application() {
@@ -9,9 +10,18 @@ class FlipBookApplication : Application() {
         FlipBookDatabase.getInstance(this)
     }
 
+    val audioManager: AudioManager by lazy {
+        AudioManager(this)
+    }
+
     override fun onCreate() {
         super.onCreate()
         instance = this
+    }
+
+    override fun onTerminate() {
+        audioManager.release()
+        super.onTerminate()
     }
 
     companion object {

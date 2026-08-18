@@ -1,6 +1,7 @@
 package com.pranav.flipbook.ui.notes
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pranav.flipbook.data.entity.BookmarkEntity
@@ -40,6 +42,20 @@ fun NotesHighlightsScreen(
 
     var showAddNote by remember { mutableStateOf(false) }
     var editingNote by remember { mutableStateOf<NoteEntity?>(null) }
+    var query by remember { mutableStateOf("") }
+    val filteredNotes = remember(notes, query) {
+        if (query.isBlank()) notes else notes.filter { it.text.contains(query, ignoreCase = true) || "Page ${it.page + 1}".contains(query, ignoreCase = true) }
+    }
+    val filteredHighlights = remember(highlights, query) {
+        if (query.isBlank()) highlights else highlights.filter { it.text.contains(query, ignoreCase = true) || "Page ${it.page + 1}".contains(query, ignoreCase = true) }
+    }
+    val filteredBookmarks = remember(bookmarks, query) {
+        if (query.isBlank()) bookmarks else bookmarks.filter {
+            (it.title ?: "").contains(query, ignoreCase = true) ||
+                    (it.description ?: "").contains(query, ignoreCase = true) ||
+                    "Page ${it.page + 1}".contains(query, ignoreCase = true)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -71,12 +87,27 @@ fun NotesHighlightsScreen(
                     )
                 }
             }
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                singleLine = true,
+                label = { Text("Search notes, highlights, bookmarks") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = {
+                    if (query.isNotBlank()) {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Default.Clear, "Clear")
+                        }
+                    }
+                }
+            )
 
             HorizontalPager(state = pagerState) { page ->
                 when (page) {
-                    0 -> NotesTab(notes, onNavigateToPage, viewModel, bookId, onEdit = { editingNote = it })
-                    1 -> HighlightsTab(highlights, onNavigateToPage, viewModel)
-                    2 -> BookmarksTab(bookmarks, onNavigateToPage, viewModel)
+                    0 -> NotesTab(filteredNotes, onNavigateToPage, viewModel, bookId, onEdit = { editingNote = it })
+                    1 -> HighlightsTab(filteredHighlights, onNavigateToPage, viewModel)
+                    2 -> BookmarksTab(filteredBookmarks, onNavigateToPage, viewModel)
                 }
             }
         }
@@ -198,6 +229,12 @@ private fun HighlightsTab(
                     shape = MaterialTheme.shapes.medium
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp, 48.dp)
+                                .background(Color(highlight.color))
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Page ${highlight.page + 1}", style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary)

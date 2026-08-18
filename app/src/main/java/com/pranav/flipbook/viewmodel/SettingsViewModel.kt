@@ -11,13 +11,14 @@ import com.pranav.flipbook.ui.reader.pagecurl.PageTransitionStyle
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 object SettingsKeys {
     val DARK_MODE = booleanPreferencesKey("dark_mode")
     val TRANSITION_STYLE = stringPreferencesKey("transition_style")
     val ANIMATION_SPEED = intPreferencesKey("animation_speed")
     val PAGE_SOUND = booleanPreferencesKey("page_sound")
+    val PAGE_SOUND_VOLUME = floatPreferencesKey("page_sound_volume")
     val AMBIENT_SOUND = stringPreferencesKey("ambient_sound")
     val AMBIENT_VOLUME = floatPreferencesKey("ambient_volume")
     val READER_BRIGHTNESS = floatPreferencesKey("reader_brightness")
@@ -32,7 +33,7 @@ object SettingsKeys {
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val dataStore = application.dataStore
+    private val dataStore = application.settingsDataStore
 
     val darkMode: StateFlow<Boolean> = dataStore.data
         .map { it[SettingsKeys.DARK_MODE] ?: false }
@@ -49,6 +50,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val pageSoundEnabled: StateFlow<Boolean> = dataStore.data
         .map { it[SettingsKeys.PAGE_SOUND] ?: false }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val pageSoundVolume: StateFlow<Float> = dataStore.data
+        .map { it[SettingsKeys.PAGE_SOUND_VOLUME] ?: 0.6f }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0.6f)
 
     val ambientSound: StateFlow<String> = dataStore.data
         .map { it[SettingsKeys.AMBIENT_SOUND] ?: "none" }
@@ -88,6 +93,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setTransitionStyle(style: String) = updateSetting(SettingsKeys.TRANSITION_STYLE, style)
     fun setAnimationSpeed(speed: Int) = updateSetting(SettingsKeys.ANIMATION_SPEED, speed)
     fun setPageSound(enabled: Boolean) = updateSetting(SettingsKeys.PAGE_SOUND, enabled)
+    fun setPageSoundVolume(volume: Float) = updateSetting(SettingsKeys.PAGE_SOUND_VOLUME, volume)
     fun setAmbientSound(sound: String) = updateSetting(SettingsKeys.AMBIENT_SOUND, sound)
     fun setAmbientVolume(volume: Float) = updateSetting(SettingsKeys.AMBIENT_VOLUME, volume)
     fun setReaderBrightness(brightness: Float) = updateSetting(SettingsKeys.READER_BRIGHTNESS, brightness)

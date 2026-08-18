@@ -93,7 +93,7 @@ fun StatisticsScreen(
                     }
                 }
                 item {
-                    ReadingCalendarView(readingDays = emptyList())
+                    ReadingCalendarView(readingDays = stats.readingDays)
                 }
 
                 // Quick actions
@@ -172,6 +172,7 @@ fun StatCard(
 @Composable
 fun GoalsScreen(onBack: () -> Unit, viewModel: StatisticsViewModel = viewModel()) {
     val goals by viewModel.activeGoals.collectAsState()
+    val stats by viewModel.stats.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -204,6 +205,18 @@ fun GoalsScreen(onBack: () -> Unit, viewModel: StatisticsViewModel = viewModel()
             ) {
                 items(goals.size) { index ->
                     val goal = goals[index]
+                    val progress = when (goal.type) {
+                        "DAILY_PAGES" -> stats.pagesReadToday
+                        "DAILY_TIME" -> (stats.readingTimeToday / 60000L).toInt()
+                        "WEEKLY_PAGES" -> stats.pagesReadThisWeek
+                        "MONTHLY_BOOKS" -> stats.booksCompleted
+                        else -> 0
+                    }
+                    val label = when (goal.type) {
+                        "DAILY_TIME" -> "$progress/${goal.target} min"
+                        "MONTHLY_BOOKS" -> "$progress/${goal.target} books"
+                        else -> "$progress/${goal.target} pages"
+                    }
                     Card(shape = RoundedCornerShape(12.dp)) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
@@ -216,7 +229,13 @@ fun GoalsScreen(onBack: () -> Unit, viewModel: StatisticsViewModel = viewModel()
                                 },
                                 style = MaterialTheme.typography.titleSmall
                             )
-                            Text("Target: ${goal.target}", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = { (progress.toFloat() / goal.target.coerceAtLeast(1)).coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth().height(6.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(label, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }
@@ -232,7 +251,12 @@ fun GoalsScreen(onBack: () -> Unit, viewModel: StatisticsViewModel = viewModel()
                 title = { Text("Create Goal") },
                 text = {
                     Column {
-                        listOf("DAILY_PAGES" to "Daily Pages", "DAILY_TIME" to "Daily Minutes", "WEEKLY_PAGES" to "Weekly Pages").forEach { (type, label) ->
+                        listOf(
+                            "DAILY_PAGES" to "Daily Pages",
+                            "DAILY_TIME" to "Daily Minutes",
+                            "WEEKLY_PAGES" to "Weekly Pages",
+                            "MONTHLY_BOOKS" to "Monthly Books"
+                        ).forEach { (type, label) ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 RadioButton(selected = goalType == type, onClick = { goalType = type })
                                 Text(label)

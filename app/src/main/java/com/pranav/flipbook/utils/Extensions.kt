@@ -59,7 +59,7 @@ fun Long.formatDate(): String {
 }
 
 fun Long.formatDateTime(): String {
-    val sdf = SimpleDateFormat("MMM dd, yyyy · h:mm a", Locale.getDefault())
+    val sdf = SimpleDateFormat("MMM dd, yyyy - h:mm a", Locale.getDefault())
     return sdf.format(Date(this))
 }
 

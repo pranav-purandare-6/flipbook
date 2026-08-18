@@ -22,6 +22,7 @@ data class StatisticsState(
     val readingTimeToday: Long = 0L,
     val currentStreak: Int = 0,
     val longestStreak: Int = 0,
+    val readingDays: List<Long> = emptyList(),
     val isLoading: Boolean = true
 )
 
@@ -46,6 +47,9 @@ class StatisticsViewModel(application: Application) : AndroidViewModel(applicati
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     init {
+        viewModelScope.launch {
+            achievementRepo.initializeAchievements()
+        }
         loadStatistics()
     }
 
@@ -70,6 +74,7 @@ class StatisticsViewModel(application: Application) : AndroidViewModel(applicati
                 val tToday = sessionRepo.getReadingTimeToday()
                 val cStreak = sessionRepo.getCurrentStreak()
                 val lStreak = sessionRepo.getLongestStreak()
+                val readingDays = sessionRepo.getReadingDays()
 
                 _stats.value = baseStats.copy(
                     pagesReadToday = pToday,
@@ -78,10 +83,42 @@ class StatisticsViewModel(application: Application) : AndroidViewModel(applicati
                     readingTimeToday = tToday,
                     currentStreak = cStreak,
                     longestStreak = lStreak,
+                    readingDays = readingDays,
                     isLoading = false
+                )
+                updateAchievementProgress(
+                    bookCount = baseStats.totalBooksOpened,
+                    completedBooks = baseStats.booksCompleted,
+                    pagesRead = baseStats.totalPagesRead,
+                    currentStreak = cStreak
                 )
             }
         }
+    }
+
+    private suspend fun updateAchievementProgress(
+        bookCount: Int,
+        completedBooks: Int,
+        pagesRead: Int,
+        currentStreak: Int
+    ) {
+        achievementRepo.updateProgress("FIRST_BOOK", bookCount.coerceAtMost(1))
+        if (bookCount >= 1) achievementRepo.unlockAchievement("FIRST_BOOK")
+
+        achievementRepo.updateProgress("PAGES_100", pagesRead.coerceAtMost(100))
+        achievementRepo.updateProgress("PAGES_1000", pagesRead.coerceAtMost(1000))
+        if (pagesRead >= 100) achievementRepo.unlockAchievement("PAGES_100")
+        if (pagesRead >= 1000) achievementRepo.unlockAchievement("PAGES_1000")
+
+        achievementRepo.updateProgress("COMPLETE_1", completedBooks.coerceAtMost(1))
+        achievementRepo.updateProgress("COMPLETE_5", completedBooks.coerceAtMost(5))
+        if (completedBooks >= 1) achievementRepo.unlockAchievement("COMPLETE_1")
+        if (completedBooks >= 5) achievementRepo.unlockAchievement("COMPLETE_5")
+
+        achievementRepo.updateProgress("STREAK_7", currentStreak.coerceAtMost(7))
+        achievementRepo.updateProgress("STREAK_30", currentStreak.coerceAtMost(30))
+        if (currentStreak >= 7) achievementRepo.unlockAchievement("STREAK_7")
+        if (currentStreak >= 30) achievementRepo.unlockAchievement("STREAK_30")
     }
 
     fun createGoal(type: String, target: Int) {

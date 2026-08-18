@@ -27,6 +27,7 @@ fun BookmarksScreen(
 ) {
     val bookmarks by (if (bookId != null) viewModel.getBookmarksForBook(bookId) else viewModel.getAllBookmarks())
         .collectAsState(initial = emptyList())
+    var editingBookmark by remember { mutableStateOf<BookmarkEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -57,10 +58,53 @@ fun BookmarksScreen(
                     BookmarkItem(
                         bookmark = bookmark,
                         onClick = { onNavigateToPage(bookmark.bookId, bookmark.page) },
+                        onEdit = { editingBookmark = bookmark },
                         onDelete = { viewModel.deleteBookmark(bookmark) }
                     )
                 }
             }
+        }
+
+        editingBookmark?.let { bookmark ->
+            var title by remember(bookmark.id) { mutableStateOf(bookmark.title ?: "") }
+            var description by remember(bookmark.id) { mutableStateOf(bookmark.description ?: "") }
+            AlertDialog(
+                onDismissRequest = { editingBookmark = null },
+                title = { Text("Edit Bookmark") },
+                text = {
+                    Column {
+                        Text("Page ${bookmark.page + 1}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = title,
+                            onValueChange = { title = it },
+                            label = { Text("Title") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = description,
+                            onValueChange = { description = it },
+                            label = { Text("Description") },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp),
+                            maxLines = 4
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.updateBookmark(
+                            bookmark.copy(
+                                title = title.trim().ifBlank { null },
+                                description = description.trim().ifBlank { null }
+                            )
+                        )
+                        editingBookmark = null
+                    }) { Text("Save") }
+                },
+                dismissButton = { TextButton(onClick = { editingBookmark = null }) { Text("Cancel") } }
+            )
         }
     }
 }
@@ -69,6 +113,7 @@ fun BookmarksScreen(
 private fun BookmarkItem(
     bookmark: BookmarkEntity,
     onClick: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -89,7 +134,7 @@ private fun BookmarkItem(
                     style = MaterialTheme.typography.titleSmall
                 )
                 Text(
-                    text = "Page ${bookmark.page + 1} · ${bookmark.createdDate.formatDate()}",
+                    text = "Page ${bookmark.page + 1} - ${bookmark.createdDate.formatDate()}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -103,6 +148,11 @@ private fun BookmarkItem(
                     Icon(Icons.Default.MoreVert, "More")
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Edit") },
+                        onClick = { showMenu = false; onEdit() },
+                        leadingIcon = { Icon(Icons.Default.Edit, null) }
+                    )
                     DropdownMenuItem(
                         text = { Text("Delete") },
                         onClick = { showMenu = false; onDelete() },

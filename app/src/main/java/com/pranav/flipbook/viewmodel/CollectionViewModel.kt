@@ -46,6 +46,12 @@ class CollectionViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    fun toggleFavorite(book: BookEntity) {
+        viewModelScope.launch {
+            bookRepo.updateFavorite(book.id, !book.isFavorite)
+        }
+    }
+
     fun addBookToCollection(bookId: Long, collectionId: Long) {
         viewModelScope.launch {
             collectionRepo.addBookToCollection(bookId, collectionId)

@@ -7,17 +7,6 @@ import kotlin.math.*
 
 object CurlGeometry {
 
-    data class Vector2D(val x: Float, val y: Float) {
-        fun length() = sqrt(x * x + y * y)
-        fun normalized(): Vector2D {
-            val len = length()
-            return if (len > 0f) Vector2D(x / len, y / len) else Vector2D(0f, 0f)
-        }
-        operator fun plus(other: Vector2D) = Vector2D(x + other.x, y + other.y)
-        operator fun minus(other: Vector2D) = Vector2D(x - other.x, y - other.y)
-        operator fun times(factor: Float) = Vector2D(x * factor, y * factor)
-    }
-
     data class CurlMeshResult(
         val frontClipPath: Path,
         val backClipPath: Path,
@@ -26,12 +15,12 @@ object CurlGeometry {
         val foldLineEnd: Offset,
         val backMatrix: Matrix,
         val shadowAlpha: Float,
-        val cylinderWidth: Float
+        val curlProgress: Float
     )
 
     /**
-     * Compute authentic paper curl geometry based on touch drag point P relative to origin corner C.
-     * Uses perpendicular bisector geometry: fold line is normal to vector (P - C) passing through midpoint M.
+     * Physical page curl from corner C to touch point P.
+     * Fold line is perpendicular to CP through midpoint M.
      */
     fun computePhysicalCurl(
         touchX: Float,
@@ -45,91 +34,110 @@ object CurlGeometry {
         val pX = touchX.coerceIn(0f, pageWidth)
         val pY = touchY.coerceIn(0f, pageHeight)
 
-        // Midpoint between origin corner C and dragged touch point P
-        val midX = (originX + pX) / 2f
-        val midY = (originY + pY) / 2f
-
-        // Vector from C to P
         val dx = pX - originX
         val dy = pY - originY
         val dist = sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
 
-        // Perpendicular vector along the fold line
-        val normalX = -dy / dist
-        val normalY = dx / dist
+        val midX = (originX + pX) / 2f
+        val midY = (originY + pY) / 2f
 
-        // Extend fold line across the page bounding box
-        val lineLen = sqrt(pageWidth * pageWidth + pageHeight * pageHeight) * 2f
-        val lineStart = Offset(midX - normalX * lineLen, midY - normalY * lineLen)
-        val lineEnd = Offset(midX + normalX * lineLen, midY + normalY * lineLen)
+        // Normal to CP vector - fold line direction
+        val nx = -dy / dist
+        val ny = dx / dist
 
-        // Calculate progress (0 = no curl, 1 = fully turned)
-        val progress = (abs(pX - originX) / pageWidth).coerceIn(0f, 1f)
+        val lineLen = hypot(pageWidth, pageHeight) * 2f
+        val foldStart = Offset(midX - nx * lineLen, midY - ny * lineLen)
+        val foldEnd = Offset(midX + nx * lineLen, midY + ny * lineLen)
 
-        // Front path (unturned portion of page)
+        val progress = (dist / pageWidth).coerceIn(0f, 1f)
+
+        // Signed distance from fold line to determine front/back regions
+        // Front = unturned portion (contains origin corner)
         val frontPath = Path().apply {
             if (isForward) {
+                // Front is left of fold - polygon from left edge to fold intersection
+                val foldX = computeFoldIntersectionX(midX, midY, nx, ny, pageWidth, pageHeight, isForward)
                 moveTo(0f, 0f)
-                lineTo(midX, 0f)
-                lineTo(midX, pageHeight)
+                lineTo(foldX.coerceIn(0f, pageWidth), 0f)
+                lineTo(foldX.coerceIn(0f, pageWidth), pageHeight)
                 lineTo(0f, pageHeight)
                 close()
             } else {
-                moveTo(midX, 0f)
+                val foldX = computeFoldIntersectionX(midX, midY, nx, ny, pageWidth, pageHeight, isForward)
+                moveTo(foldX.coerceIn(0f, pageWidth), 0f)
                 lineTo(pageWidth, 0f)
                 lineTo(pageWidth, pageHeight)
-                lineTo(midX, pageHeight)
+                lineTo(foldX.coerceIn(0f, pageWidth), pageHeight)
                 close()
             }
         }
 
-        // Folded back path
-        val cylinderW = (pageWidth * 0.12f * sin(progress * PI.toFloat())).coerceAtLeast(10f)
+        // Cylinder width simulates paper thickness at fold
+        val cylinderW = (pageWidth * 0.08f + progress * pageWidth * 0.06f).coerceIn(8f, pageWidth * 0.2f)
+
         val backPath = Path().apply {
             if (isForward) {
-                moveTo(midX, 0f)
-                lineTo((midX + cylinderW).coerceAtMost(pageWidth), 0f)
-                lineTo((midX + cylinderW).coerceAtMost(pageWidth), pageHeight)
-                lineTo(midX, pageHeight)
+                val fx = computeFoldIntersectionX(midX, midY, nx, ny, pageWidth, pageHeight, isForward)
+                    .coerceIn(0f, pageWidth)
+                moveTo(fx, 0f)
+                lineTo((fx + cylinderW).coerceAtMost(pageWidth), 0f)
+                lineTo((fx + cylinderW).coerceAtMost(pageWidth), pageHeight)
+                lineTo(fx, pageHeight)
                 close()
             } else {
-                moveTo((midX - cylinderW).coerceAtLeast(0f), 0f)
-                lineTo(midX, 0f)
-                lineTo(midX, pageHeight)
-                lineTo((midX - cylinderW).coerceAtLeast(0f), pageHeight)
+                val fx = computeFoldIntersectionX(midX, midY, nx, ny, pageWidth, pageHeight, isForward)
+                    .coerceIn(0f, pageWidth)
+                moveTo((fx - cylinderW).coerceAtLeast(0f), 0f)
+                lineTo(fx, 0f)
+                lineTo(fx, pageHeight)
+                lineTo((fx - cylinderW).coerceAtLeast(0f), pageHeight)
                 close()
             }
         }
 
-        // Shadow along fold line
-        val shadowW = cylinderW * 1.5f + 15f
+        val shadowW = cylinderW * 2f + 20f * progress
         val shadowPath = Path().apply {
-            moveTo(midX - shadowW / 2, 0f)
-            lineTo(midX + shadowW / 2, 0f)
-            lineTo(midX + shadowW / 2, pageHeight)
-            lineTo(midX - shadowW / 2, pageHeight)
+            val fx = computeFoldIntersectionX(midX, midY, nx, ny, pageWidth, pageHeight, isForward)
+            moveTo(fx - shadowW / 2, 0f)
+            lineTo(fx + shadowW / 2, 0f)
+            lineTo(fx + shadowW / 2, pageHeight)
+            lineTo(fx - shadowW / 2, pageHeight)
             close()
         }
 
-        // Reflection matrix across fold line for back of page
+        // Reflect back surface across fold line
         val matrix = Matrix().apply {
             reset()
             translate(midX, midY)
-            scale(if (isForward) -0.95f else 0.95f, 1f)
+            val scaleX = if (isForward) -0.92f else 0.92f
+            scale(scaleX, 0.98f - progress * 0.03f)
             translate(-midX, -midY)
         }
 
-        val shadowAlpha = (0.35f * (1f - progress)).coerceIn(0.05f, 0.4f)
+        val shadowAlpha = (0.15f + progress * 0.35f).coerceIn(0.1f, 0.55f)
 
         return CurlMeshResult(
             frontClipPath = frontPath,
             backClipPath = backPath,
             curlShadowPath = shadowPath,
-            foldLineStart = lineStart,
-            foldLineEnd = lineEnd,
+            foldLineStart = foldStart,
+            foldLineEnd = foldEnd,
             backMatrix = matrix,
             shadowAlpha = shadowAlpha,
-            cylinderWidth = cylinderW
+            curlProgress = progress
         )
+    }
+
+    private fun computeFoldIntersectionX(
+        midX: Float, midY: Float,
+        nx: Float, ny: Float,
+        pageWidth: Float, pageHeight: Float,
+        isForward: Boolean
+    ): Float {
+        // Intersect fold line with top edge (y=0) and bottom edge (y=pageHeight), use average x
+        val topX = if (abs(ny) > 0.001f) midX - (midY / ny) * nx else midX
+        val bottomX = if (abs(ny) > 0.001f) midX + ((pageHeight - midY) / ny) * nx else midX
+        val avg = (topX + bottomX) / 2f
+        return if (isForward) avg.coerceIn(0f, pageWidth) else avg.coerceIn(0f, pageWidth)
     }
 }

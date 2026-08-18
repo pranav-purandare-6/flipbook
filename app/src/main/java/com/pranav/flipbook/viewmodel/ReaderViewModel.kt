@@ -8,27 +8,32 @@ import androidx.lifecycle.viewModelScope
 import com.pranav.flipbook.FlipBookApplication
 import com.pranav.flipbook.data.entity.*
 import com.pranav.flipbook.data.repository.*
+import com.pranav.flipbook.pdf.renderer.BitmapAppearanceProcessor
 import com.pranav.flipbook.pdf.renderer.PageBitmapCache
 import com.pranav.flipbook.pdf.renderer.PdfRendererManager
 import com.pranav.flipbook.pdf.metadata.PdfMetadataExtractor
 import com.pranav.flipbook.pdf.metadata.TocEntry
 import com.pranav.flipbook.pdf.search.PdfTextSearchEngine
 import com.pranav.flipbook.pdf.search.SearchResult
+import com.pranav.flipbook.ui.reader.ReaderAppearance
+import com.pranav.flipbook.ui.reader.ReaderMode
 import com.pranav.flipbook.ui.reader.pagecurl.PageTransitionStyle
 import com.pranav.flipbook.utils.calculateProgress
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class ReaderViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db = (application as FlipBookApplication).database
+    private val app = application as FlipBookApplication
+    private val db = app.database
+    private val audioManager = app.audioManager
+    private val dataStore = application.settingsDataStore
+
     private val bookRepo = BookRepository(db.bookDao())
     private val bookmarkRepo = BookmarkRepository(db.bookmarkDao())
     private val sessionRepo = ReadingSessionRepository(db.readingSessionDao())
-    private val noteRepo = NoteRepository(db.noteDao())
+    private val favoriteQuoteRepo = FavoriteQuoteRepository(db.favoriteQuoteDao())
     private val highlightRepo = HighlightRepository(db.highlightDao())
 
     private val pdfRenderer = PdfRendererManager(application)
@@ -69,23 +74,71 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     private val _searchResults = MutableStateFlow<List<SearchResult>>(emptyList())
     val searchResults: StateFlow<List<SearchResult>> = _searchResults.asStateFlow()
 
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+    val appearance: StateFlow<ReaderAppearance> = dataStore.data
+        .map { prefs ->
+            ReaderAppearance(
+                mode = ReaderMode.fromKey(prefs[SettingsKeys.READER_THEME] ?: "light"),
+                brightness = prefs[SettingsKeys.READER_BRIGHTNESS] ?: 1f,
+                marginDp = when (prefs[SettingsKeys.MARGIN_SIZE] ?: "medium") {
+                    "small" -> 0
+                    "large" -> 24
+                    else -> 12
+                }
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, ReaderAppearance())
 
-    private val _transitionStyle = MutableStateFlow(PageTransitionStyle.CURL)
-    val transitionStyle: StateFlow<PageTransitionStyle> = _transitionStyle.asStateFlow()
+    val transitionStyle: StateFlow<PageTransitionStyle> = dataStore.data
+        .map { prefs ->
+            when (prefs[SettingsKeys.TRANSITION_STYLE] ?: "CURL") {
+                "SLIDE" -> PageTransitionStyle.SLIDE
+                "FADE" -> PageTransitionStyle.FADE
+                "NONE" -> PageTransitionStyle.NONE
+                else -> PageTransitionStyle.CURL
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, PageTransitionStyle.CURL)
 
-    private val _animationDuration = MutableStateFlow(400)
-    val animationDuration: StateFlow<Int> = _animationDuration.asStateFlow()
+    val animationDuration: StateFlow<Int> = dataStore.data
+        .map { it[SettingsKeys.ANIMATION_SPEED] ?: 400 }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 400)
+
+    val autoHideControls: StateFlow<Boolean> = dataStore.data
+        .map { it[SettingsKeys.AUTO_HIDE_CONTROLS] ?: true }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     private var sessionStartTime: Long = 0L
     private var sessionStartPage: Int = 0
     private var currentBookId: Long = 0L
     private var currentUri: Uri? = null
     private var renderJob: Job? = null
+    private var bookmarkCheckJob: Job? = null
     private var pageWidth = 1080
     private var pageHeight = 1920
-    private var bookmarkCheckJob: Job? = null
+    private var appearanceKey: String = ""
+    private var readerEntered = false
+
+    init {
+        viewModelScope.launch {
+            dataStore.data.collect { prefs ->
+                audioManager.updateSettings(
+                    pageSound = prefs[SettingsKeys.PAGE_SOUND] ?: false,
+                    pageVolume = prefs[SettingsKeys.PAGE_SOUND_VOLUME] ?: 0.6f,
+                    ambient = prefs[SettingsKeys.AMBIENT_SOUND] ?: "none",
+                    ambientVol = prefs[SettingsKeys.AMBIENT_VOLUME] ?: 0.5f
+                )
+            }
+        }
+
+        viewModelScope.launch {
+            appearance.collect { app ->
+                if (app.cacheKey != appearanceKey && _book.value != null) {
+                    appearanceKey = app.cacheKey
+                    reapplyAppearance()
+                }
+            }
+        }
+    }
 
     fun openBook(bookId: Long) {
         if (currentBookId == bookId && _book.value != null) return
@@ -119,35 +172,42 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                     bookRepo.updatePageCount(bookId, pages)
                 }
 
-                // Restore saved page (ONCE, not in LaunchedEffect with pageIndex)
                 val savedPage = bookEntity.currentPage.coerceIn(0, (pages - 1).coerceAtLeast(0))
                 _currentPage.value = savedPage
 
-                // Start reading session
                 sessionStartTime = System.currentTimeMillis()
                 sessionStartPage = savedPage
 
-                // Update last opened
-                bookRepo.updateProgress(
-                    bookId, savedPage,
-                    calculateProgress(savedPage, pages)
-                )
+                bookRepo.updateProgress(bookId, savedPage, calculateProgress(savedPage, pages))
 
-                // Load TOC
                 launch {
-                    val toc = metadataExtractor.extractTableOfContents(currentUri!!)
-                    _tocEntries.value = toc
+                    _tocEntries.value = metadataExtractor.extractTableOfContents(currentUri!!)
                 }
 
-                // Render current page
-                renderCurrentPage()
+                if (!readerEntered) {
+                    audioManager.onReaderEnter()
+                    readerEntered = true
+                }
 
+                renderCurrentPage()
                 _isLoading.value = false
             } catch (e: Exception) {
                 _error.value = "Error opening book: ${e.message}"
                 _isLoading.value = false
             }
         }
+    }
+
+    fun onPageTurnStart() {
+        audioManager.onPageTurnStart()
+    }
+
+    fun onReaderPause() {
+        audioManager.onReaderPause()
+    }
+
+    fun onReaderResume() {
+        audioManager.onReaderResume()
     }
 
     fun setViewSize(width: Int, height: Int) {
@@ -164,45 +224,38 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         renderJob = viewModelScope.launch {
             val page = _currentPage.value
             val total = _totalPages.value
+            val app = appearance.value
 
-            // Render current page
-            val current = pageCache.get(page) ?: pdfRenderer.renderPage(page, pageWidth, pageHeight)
-            current?.let {
-                pageCache.put(page, it)
-                _currentBitmap.value = it
-            }
+            _currentBitmap.value = loadProcessedPage(page, app)
+            _nextBitmap.value = if (page + 1 < total) loadProcessedPage(page + 1, app) else null
+            _previousBitmap.value = if (page - 1 >= 0) loadProcessedPage(page - 1, app) else null
 
-            // Render adjacent pages
-            if (page + 1 < total) {
-                val next = pageCache.get(page + 1) ?: pdfRenderer.renderPage(page + 1, pageWidth, pageHeight)
-                next?.let {
-                    pageCache.put(page + 1, it)
-                    _nextBitmap.value = it
-                }
-            } else {
-                _nextBitmap.value = null
-            }
-
-            if (page - 1 >= 0) {
-                val prev = pageCache.get(page - 1) ?: pdfRenderer.renderPage(page - 1, pageWidth, pageHeight)
-                prev?.let {
-                    pageCache.put(page - 1, it)
-                    _previousBitmap.value = it
-                }
-            } else {
-                _previousBitmap.value = null
-            }
-
-            // Preload further pages
             pageCache.preloadPages(page, total, pdfRenderer, pageWidth, pageHeight)
             pageCache.evictDistant(page)
         }
 
-        // Check bookmark
         bookmarkCheckJob?.cancel()
         bookmarkCheckJob = viewModelScope.launch {
             bookmarkRepo.isPageBookmarked(currentBookId, _currentPage.value)
                 .collect { _isBookmarked.value = it }
+        }
+    }
+
+    private suspend fun loadProcessedPage(page: Int, app: ReaderAppearance): Bitmap? {
+        val raw = pageCache.get(page) ?: pdfRenderer.renderPage(page, pageWidth, pageHeight)
+        raw?.let { pageCache.put(page, it) }
+        return raw?.let { BitmapAppearanceProcessor.apply(it, app) }
+    }
+
+    private fun reapplyAppearance() {
+        renderJob?.cancel()
+        renderJob = viewModelScope.launch {
+            val page = _currentPage.value
+            val total = _totalPages.value
+            val app = appearance.value
+            _currentBitmap.value = loadProcessedPage(page, app)
+            _nextBitmap.value = if (page + 1 < total) loadProcessedPage(page + 1, app) else null
+            _previousBitmap.value = if (page - 1 >= 0) loadProcessedPage(page - 1, app) else null
         }
     }
 
@@ -234,9 +287,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val page = _currentPage.value
             val total = _totalPages.value
-            val progress = calculateProgress(page, total)
-            bookRepo.updateProgress(currentBookId, page, progress)
-
+            bookRepo.updateProgress(currentBookId, page, calculateProgress(page, total))
             if (page >= total - 1 && total > 0) {
                 bookRepo.updateCompleted(currentBookId, true)
             }
@@ -249,34 +300,52 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun searchInPdf(query: String) {
-        _searchQuery.value = query
-        if (query.isBlank()) {
-            _searchResults.value = emptyList()
-            return
+    fun saveFavoriteQuote(text: String) {
+        if (text.isBlank() || currentBookId == 0L) return
+        viewModelScope.launch {
+            favoriteQuoteRepo.insertQuote(
+                FavoriteQuoteEntity(
+                    bookId = currentBookId,
+                    page = _currentPage.value,
+                    text = text.trim()
+                )
+            )
         }
+    }
+
+    fun savePageHighlight(text: String, color: Int) {
+        if (text.isBlank() || currentBookId == 0L) return
+        viewModelScope.launch {
+            highlightRepo.insertHighlight(
+                HighlightEntity(
+                    bookId = currentBookId,
+                    page = _currentPage.value,
+                    text = text.trim(),
+                    color = color
+                )
+            )
+        }
+    }
+
+    fun searchInPdf(query: String) {
         viewModelScope.launch {
             currentUri?.let { uri ->
-                val results = searchEngine.search(uri, query)
-                _searchResults.value = results
+                _searchResults.value = if (query.isBlank()) emptyList()
+                else searchEngine.search(uri, query)
             }
         }
     }
 
-    fun setTransitionStyle(style: PageTransitionStyle) {
-        _transitionStyle.value = style
-    }
-
-    fun setAnimationDuration(ms: Int) {
-        _animationDuration.value = ms.coerceIn(100, 2000)
-    }
-
     fun endSession() {
+        if (readerEntered) {
+            audioManager.onReaderExit()
+            readerEntered = false
+        }
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             val duration = now - sessionStartTime
             val pagesRead = kotlin.math.abs(_currentPage.value - sessionStartPage)
-            if (duration > 5000 && pagesRead > 0) { // At least 5 seconds and 1 page
+            if (duration > 5000 && pagesRead > 0) {
                 sessionRepo.insertSession(
                     ReadingSessionEntity(
                         bookId = currentBookId,
@@ -296,9 +365,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     override fun onCleared() {
         super.onCleared()
         endSession()
-        viewModelScope.launch {
-            pdfRenderer.close()
-        }
+        viewModelScope.launch { pdfRenderer.close() }
         pageCache.destroy()
     }
 }

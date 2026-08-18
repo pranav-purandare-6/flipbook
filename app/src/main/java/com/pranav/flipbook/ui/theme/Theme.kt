@@ -1,7 +1,6 @@
 package com.pranav.flipbook.ui.theme
 
 import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -24,12 +23,13 @@ private val DarkColorScheme = darkColorScheme(
     onBackground = BookDarkOnBackground,
     onSurface = BookDarkOnSurface,
     onSurfaceVariant = BookDarkOnSurfaceVariant,
-    primaryContainer = BookDarkSurfaceVariant,
+    primaryContainer = Color(0xFF4A3A30),
     onPrimaryContainer = BookDarkTertiary,
-    secondaryContainer = BookDarkSurfaceVariant,
+    secondaryContainer = Color(0xFF4A3530),
     onSecondaryContainer = BookDarkOnSurface,
     outline = WarmGray,
-    outlineVariant = BookDarkSurfaceVariant
+    outlineVariant = BookDarkSurfaceVariant,
+    error = ErrorRed
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -43,12 +43,13 @@ private val LightColorScheme = lightColorScheme(
     onBackground = BookLightOnBackground,
     onSurface = BookLightOnSurface,
     onSurfaceVariant = BookLightOnSurfaceVariant,
-    primaryContainer = BookLightSurfaceVariant,
-    onPrimaryContainer = BookLightPrimary,
-    secondaryContainer = BookLightSurfaceVariant,
-    onSecondaryContainer = BookLightOnSurface,
+    primaryContainer = Color(0xFFE8DDD4),
+    onPrimaryContainer = Espresso,
+    secondaryContainer = Color(0xFFF0E0D4),
+    onSecondaryContainer = Espresso,
     outline = WarmGray,
-    outlineVariant = BookLightSurfaceVariant
+    outlineVariant = BookLightSurfaceVariant,
+    error = ErrorRed
 )
 
 @Composable

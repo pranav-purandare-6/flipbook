@@ -21,6 +21,9 @@ interface ReadingGoalDao {
     @Query("SELECT * FROM reading_goals ORDER BY createdDate DESC")
     fun getAllGoals(): Flow<List<ReadingGoalEntity>>
 
+    @Query("SELECT * FROM reading_goals ORDER BY createdDate DESC")
+    suspend fun getAllGoalsSnapshot(): List<ReadingGoalEntity>
+
     @Query("SELECT * FROM reading_goals WHERE id = :id")
     suspend fun getGoalById(id: Long): ReadingGoalEntity?
 

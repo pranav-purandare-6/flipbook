@@ -28,6 +28,8 @@ fun LibraryScreen(
     onSettingsClick: () -> Unit,
     onStatisticsClick: () -> Unit,
     onCollectionsClick: () -> Unit,
+    onReadingListsClick: () -> Unit,
+    onFavoriteQuotesClick: () -> Unit,
     onBookInfoClick: (Long) -> Unit,
     viewModel: LibraryViewModel = viewModel()
 ) {
@@ -125,8 +127,8 @@ fun LibraryScreen(
                                         text = {
                                             Text(when(order) {
                                                 SortOrder.RECENTLY_OPENED -> "Recently Opened"
-                                                SortOrder.NAME_ASC -> "Name A–Z"
-                                                SortOrder.NAME_DESC -> "Name Z–A"
+                                                SortOrder.NAME_ASC -> "Name A-Z"
+                                                SortOrder.NAME_DESC -> "Name Z-A"
                                                 SortOrder.DATE_ADDED -> "Date Added"
                                                 SortOrder.FILE_SIZE -> "File Size"
                                                 SortOrder.PROGRESS -> "Reading Progress"
@@ -179,6 +181,9 @@ fun LibraryScreen(
                 layout = layout,
                 onBookClick = onBookClick,
                 onFavoriteClick = { book -> viewModel.toggleFavorite(book.id, book.isFavorite) },
+                onBookInfoClick = onBookInfoClick,
+                onRenameClick = { book -> showRenameDialog = book },
+                onDeleteClick = { book -> showDeleteDialog = book },
                 modifier = Modifier.padding(padding)
             )
         } else {
@@ -258,6 +263,63 @@ fun LibraryScreen(
                     }
                 }
 
+                item { Spacer(modifier = Modifier.height(8.dp)) }
+
+                // Reading Lists shortcut
+                item {
+                    Card(
+                        onClick = onReadingListsClick,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Outlined.ListAlt, "Reading Lists",
+                                tint = MaterialTheme.colorScheme.secondary)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Reading Lists", style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ChevronRight, null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+
+                item { Spacer(modifier = Modifier.height(8.dp)) }
+
+                item {
+                    Card(
+                        onClick = onFavoriteQuotesClick,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Outlined.FormatQuote, "Favorite Quotes",
+                                tint = MaterialTheme.colorScheme.tertiary)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Favorite Quotes", style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.weight(1f))
+                            Icon(Icons.Default.ChevronRight, null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+
                 item { Spacer(modifier = Modifier.height(16.dp)) }
 
                 // All Books header
@@ -296,6 +358,9 @@ fun LibraryScreen(
                                 book = allBooks[index],
                                 onClick = { onBookClick(allBooks[index].id) },
                                 onFavoriteClick = { viewModel.toggleFavorite(allBooks[index].id, allBooks[index].isFavorite) },
+                                onInfoClick = { onBookInfoClick(allBooks[index].id) },
+                                onRenameClick = { showRenameDialog = allBooks[index] },
+                                onDeleteClick = { showDeleteDialog = allBooks[index] },
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                             )
                         }
@@ -367,6 +432,32 @@ fun LibraryScreen(
                 }
             )
         }
+
+        showRenameDialog?.let { book ->
+            var title by remember(book.id) { mutableStateOf(book.displayTitle) }
+            AlertDialog(
+                onDismissRequest = { showRenameDialog = null },
+                title = { Text("Rename Book") },
+                text = {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Library title") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.renameBook(book.id, title)
+                        showRenameDialog = null
+                    }) { Text("Save") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRenameDialog = null }) { Text("Cancel") }
+                }
+            )
+        }
     }
 }
 
@@ -386,6 +477,9 @@ private fun BookListContent(
     layout: LibraryLayout,
     onBookClick: (Long) -> Unit,
     onFavoriteClick: (BookEntity) -> Unit,
+    onBookInfoClick: ((Long) -> Unit)? = null,
+    onRenameClick: ((BookEntity) -> Unit)? = null,
+    onDeleteClick: ((BookEntity) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -397,7 +491,10 @@ private fun BookListContent(
             BookListItem(
                 book = book,
                 onClick = { onBookClick(book.id) },
-                onFavoriteClick = { onFavoriteClick(book) }
+                onFavoriteClick = { onFavoriteClick(book) },
+                onInfoClick = onBookInfoClick?.let { { it(book.id) } },
+                onRenameClick = onRenameClick?.let { { it(book) } },
+                onDeleteClick = onDeleteClick?.let { { it(book) } }
             )
         }
     }

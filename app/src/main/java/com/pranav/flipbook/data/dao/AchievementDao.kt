@@ -15,6 +15,9 @@ interface AchievementDao {
     @Query("SELECT * FROM achievements ORDER BY isUnlocked DESC, progress DESC")
     fun getAllAchievements(): Flow<List<AchievementEntity>>
 
+    @Query("SELECT * FROM achievements ORDER BY isUnlocked DESC, progress DESC")
+    suspend fun getAllAchievementsSnapshot(): List<AchievementEntity>
+
     @Query("SELECT * FROM achievements WHERE isUnlocked = 1 ORDER BY unlockedDate DESC")
     fun getUnlockedAchievements(): Flow<List<AchievementEntity>>
 

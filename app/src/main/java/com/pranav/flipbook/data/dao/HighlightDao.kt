@@ -21,6 +21,9 @@ interface HighlightDao {
     @Query("SELECT * FROM highlights ORDER BY createdDate DESC")
     fun getAllHighlights(): Flow<List<HighlightEntity>>
 
+    @Query("SELECT * FROM highlights ORDER BY createdDate DESC")
+    suspend fun getAllHighlightsSnapshot(): List<HighlightEntity>
+
     @Query("SELECT * FROM highlights WHERE bookId = :bookId AND page = :page ORDER BY startOffset ASC")
     fun getHighlightsForPage(bookId: Long, page: Int): Flow<List<HighlightEntity>>
 

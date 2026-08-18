@@ -37,6 +37,7 @@ fun PageCurlView(
     animationDurationMs: Int,
     onPageForward: () -> Unit,
     onPageBackward: () -> Unit,
+    onTurnStart: (forward: Boolean) -> Unit,
     onCenterTap: () -> Unit,
     isZoomed: Boolean,
     modifier: Modifier = Modifier
@@ -47,72 +48,79 @@ fun PageCurlView(
     val scope = rememberCoroutineScope()
     val velocityTracker = remember { VelocityTracker() }
 
-    val currentImage = currentBitmap?.asImageBitmap()
-    val nextImage = nextBitmap?.asImageBitmap()
-    val previousImage = previousBitmap?.asImageBitmap()
+    val currentImage = remember(currentBitmap) { currentBitmap?.asImageBitmap() }
+    val nextImage = remember(nextBitmap) { nextBitmap?.asImageBitmap() }
+    val previousImage = remember(previousBitmap) { previousBitmap?.asImageBitmap() }
+
+    fun canGoForward() = pageIndex < totalPages - 1
+    fun canGoBackward() = pageIndex > 0
+
+    suspend fun completeTurn(forward: Boolean) {
+        if (curlState.isAnimating) return
+        curlState = curlState.copy(
+            state = if (forward) CurlState.COMPLETING_FORWARD else CurlState.COMPLETING_BACKWARD,
+            direction = if (forward) CurlDirection.FORWARD else CurlDirection.BACKWARD,
+            pageWidth = viewSize.width.toFloat(),
+            pageHeight = viewSize.height.toFloat(),
+            dragX = if (forward) 0f else viewSize.width.toFloat(),
+            dragY = viewSize.height / 2f,
+            startX = if (forward) viewSize.width.toFloat() else 0f,
+            startY = viewSize.height / 2f
+        )
+        onTurnStart(forward)
+        curlAmount.snapTo(curlAmount.value.coerceAtLeast(0.01f))
+        curlAmount.animateTo(1f, animationSpec = tween(animationDurationMs))
+        if (forward) onPageForward() else onPageBackward()
+        curlState = PageCurlStateData()
+        curlAmount.snapTo(0f)
+    }
+
+    suspend fun cancelTurn() {
+        val current = curlAmount.value
+        curlState = curlState.copy(
+            state = if (curlState.direction == CurlDirection.FORWARD)
+                CurlState.CANCELING_FORWARD else CurlState.CANCELING_BACKWARD
+        )
+        curlAmount.animateTo(
+            0f,
+            animationSpec = tween((animationDurationMs * current).toInt().coerceIn(80, 600))
+        )
+        curlState = PageCurlStateData()
+        curlAmount.snapTo(0f)
+    }
 
     Canvas(
         modifier = modifier
             .fillMaxSize()
             .onSizeChanged { viewSize = it }
-            .pointerInput(isZoomed, pageIndex) {
-                if (isZoomed) return@pointerInput
+            .pointerInput(isZoomed, pageIndex, transitionStyle) {
+                if (isZoomed || transitionStyle == PageTransitionStyle.NONE) return@pointerInput
                 detectTapGestures { offset ->
-                    if (curlState.isAnimating) return@detectTapGestures
+                    if (!curlState.canStartTurn()) return@detectTapGestures
                     val third = viewSize.width / 3f
                     when {
-                        offset.x < third -> {
-                            if (pageIndex > 0) {
-                                scope.launch {
-                                    curlState = curlState.copy(
-                                        state = CurlState.COMPLETING_BACKWARD,
-                                        direction = CurlDirection.BACKWARD,
-                                        pageWidth = viewSize.width.toFloat(),
-                                        pageHeight = viewSize.height.toFloat()
-                                    )
-                                    curlAmount.snapTo(0f)
-                                    curlAmount.animateTo(
-                                        targetValue = 1f,
-                                        animationSpec = tween(animationDurationMs)
-                                    )
-                                    onPageBackward()
-                                    curlState = PageCurlStateData()
-                                    curlAmount.snapTo(0f)
-                                }
-                            }
-                        }
-                        offset.x > viewSize.width - third -> {
-                            if (pageIndex < totalPages - 1) {
-                                scope.launch {
-                                    curlState = curlState.copy(
-                                        state = CurlState.COMPLETING_FORWARD,
-                                        direction = CurlDirection.FORWARD,
-                                        pageWidth = viewSize.width.toFloat(),
-                                        pageHeight = viewSize.height.toFloat()
-                                    )
-                                    curlAmount.snapTo(0f)
-                                    curlAmount.animateTo(
-                                        targetValue = 1f,
-                                        animationSpec = tween(animationDurationMs)
-                                    )
-                                    onPageForward()
-                                    curlState = PageCurlStateData()
-                                    curlAmount.snapTo(0f)
-                                }
-                            }
-                        }
+                        offset.x < third && canGoBackward() -> scope.launch { completeTurn(false) }
+                        offset.x > viewSize.width - third && canGoForward() -> scope.launch { completeTurn(true) }
                         else -> onCenterTap()
                     }
                 }
             }
-            .pointerInput(isZoomed, pageIndex) {
-                if (isZoomed) return@pointerInput
+            .pointerInput(isZoomed, pageIndex, transitionStyle) {
+                if (isZoomed || transitionStyle == PageTransitionStyle.NONE) return@pointerInput
                 detectHorizontalDragGestures(
                     onDragStart = { offset ->
                         if (!curlState.canStartTurn()) return@detectHorizontalDragGestures
+                        val fromRight = offset.x > viewSize.width * 0.55f
+                        val fromLeft = offset.x < viewSize.width * 0.45f
+                        val forward = fromRight && canGoForward()
+                        val backward = fromLeft && canGoBackward()
+                        if (!forward && !backward) return@detectHorizontalDragGestures
+
+                        val dir = if (forward) CurlDirection.FORWARD else CurlDirection.BACKWARD
                         curlState = curlState.copy(
-                            state = CurlState.DRAGGING_FORWARD,
-                            startX = offset.x,
+                            state = if (forward) CurlState.DRAGGING_FORWARD else CurlState.DRAGGING_BACKWARD,
+                            direction = dir,
+                            startX = if (forward) viewSize.width.toFloat() else 0f,
                             startY = offset.y,
                             dragX = offset.x,
                             dragY = offset.y,
@@ -123,75 +131,35 @@ fun PageCurlView(
                     },
                     onDragEnd = {
                         if (!curlState.isDragging) return@detectHorizontalDragGestures
-                        val currentCurl = curlAmount.value
-                        val shouldComplete = currentCurl > 0.35f
+                        val velocity = velocityTracker.calculateVelocity().x
+                        val current = curlAmount.value
+                        val forward = curlState.direction == CurlDirection.FORWARD
+                        val shouldComplete = current > 0.38f || (forward && velocity < -800f) || (!forward && velocity > 800f)
 
                         scope.launch {
                             if (shouldComplete) {
-                                val dir = curlState.direction
-                                curlState = curlState.copy(
-                                    state = if (dir == CurlDirection.FORWARD)
-                                        CurlState.COMPLETING_FORWARD
-                                    else
-                                        CurlState.COMPLETING_BACKWARD
-                                )
-                                curlAmount.animateTo(
-                                    targetValue = 1f,
-                                    animationSpec = tween(
-                                        durationMillis = (animationDurationMs * (1f - currentCurl)).toInt().coerceAtLeast(100)
-                                    )
-                                )
-                                if (dir == CurlDirection.FORWARD) onPageForward()
-                                else onPageBackward()
+                                completeTurn(forward)
                             } else {
-                                curlState = curlState.copy(
-                                    state = if (curlState.direction == CurlDirection.FORWARD)
-                                        CurlState.CANCELING_FORWARD
-                                    else
-                                        CurlState.CANCELING_BACKWARD
-                                )
-                                curlAmount.animateTo(
-                                    targetValue = 0f,
-                                    animationSpec = tween(
-                                        durationMillis = (animationDurationMs * currentCurl).toInt().coerceAtLeast(100)
-                                    )
-                                )
+                                cancelTurn()
                             }
-                            curlState = PageCurlStateData()
-                            curlAmount.snapTo(0f)
                         }
                     },
                     onHorizontalDrag = { change, dragAmount ->
                         if (!curlState.isDragging) return@detectHorizontalDragGestures
                         change.consume()
+                        velocityTracker.addPosition(change.uptimeMillis, change.position)
 
-                        val newDragX = curlState.dragX + dragAmount
-                        val direction = if (dragAmount < 0) CurlDirection.FORWARD else CurlDirection.BACKWARD
-                        val effectiveDir = if (curlState.direction == CurlDirection.NONE) direction else curlState.direction
+                        val newDragX = (curlState.dragX + dragAmount).coerceIn(0f, viewSize.width.toFloat())
+                        val forward = curlState.direction == CurlDirection.FORWARD
 
-                        val canTurn = when (effectiveDir) {
-                            CurlDirection.FORWARD -> pageIndex < totalPages - 1
-                            CurlDirection.BACKWARD -> pageIndex > 0
-                            CurlDirection.NONE -> false
-                        }
-
-                        if (!canTurn) return@detectHorizontalDragGestures
-
-                        curlState = curlState.copy(
-                            dragX = newDragX,
-                            direction = effectiveDir,
-                            state = if (effectiveDir == CurlDirection.FORWARD) CurlState.DRAGGING_FORWARD else CurlState.DRAGGING_BACKWARD
-                        )
-
-                        val curl = if (effectiveDir == CurlDirection.FORWARD) {
+                        val curl = if (forward) {
                             ((curlState.startX - newDragX) / viewSize.width).coerceIn(0f, 1f)
                         } else {
                             ((newDragX - curlState.startX) / viewSize.width).coerceIn(0f, 1f)
                         }
 
-                        scope.launch {
-                            curlAmount.snapTo(curl)
-                        }
+                        curlState = curlState.copy(dragX = newDragX)
+                        scope.launch { curlAmount.snapTo(curl) }
                     }
                 )
             }
@@ -236,7 +204,7 @@ private fun DrawScope.drawPageCurl(
     val originX = if (isForward) w else 0f
     val originY = state.startY.coerceIn(0f, h)
     val touchX = if (isForward) w * (1f - curlAmount) else w * curlAmount
-    val touchY = originY
+    val touchY = state.dragY.coerceIn(0f, h)
 
     val result = CurlGeometry.computePhysicalCurl(
         touchX = touchX,
@@ -248,42 +216,42 @@ private fun DrawScope.drawPageCurl(
         isForward = isForward
     )
 
-    // 1. Draw underlying page
+    // Underlying page
     val underImage = if (isForward) nextImage else previousImage
     if (underImage != null) {
-        drawImage(image = underImage, dstSize = IntSize(w.toInt(), h.toInt()))
+        drawImageBitmap(underImage, w, h)
     } else {
         drawRect(Color(0xFFF5F0E8), size = Size(w, h))
     }
 
-    // 2. Draw fold shadow
+    // Fold shadow on underlying page
     clipPath(result.curlShadowPath) {
         drawRect(Color.Black.copy(alpha = result.shadowAlpha), size = Size(w, h))
     }
 
-    // 3. Draw flat front page
+    // Flat front portion
     clipPath(result.frontClipPath) {
         drawCurrentPage(currentImage, w, h)
     }
 
-    // 4. Draw back folded surface
+    // Curled back of page - paper underside
     clipPath(result.backClipPath) {
-        withTransform({
-            transform(result.backMatrix)
-        }) {
+        withTransform({ transform(result.backMatrix) }) {
             drawRect(Color(0xFFEDE6DA), size = Size(w, h))
             if (currentImage != null) {
-                drawImage(image = currentImage, dstSize = IntSize(w.toInt(), h.toInt()), alpha = 0.9f)
+                drawImageBitmap(currentImage, w, h, alpha = 0.75f)
             }
+            // Subtle paper texture lines
+            drawRect(Color.Black.copy(alpha = 0.06f), size = Size(w, h))
         }
     }
 
-    // 5. Draw fold line highlight
+    // Fold highlight
     drawLine(
-        color = Color.White.copy(alpha = 0.4f),
+        color = Color.White.copy(alpha = 0.35f * (1f - result.curlProgress * 0.5f)),
         start = result.foldLineStart,
         end = result.foldLineEnd,
-        strokeWidth = 2f
+        strokeWidth = 1.5f
     )
 }
 
@@ -300,26 +268,14 @@ private fun DrawScope.drawPageSlide(
         drawCurrentPage(currentImage, w, h)
         return
     }
-
     val isForward = state.direction == CurlDirection.FORWARD
     val offset = curlAmount * w
-
-    val incomingImage = if (isForward) nextImage else previousImage
-    if (incomingImage != null) {
-        drawImage(image = incomingImage, dstSize = IntSize(w.toInt(), h.toInt()))
-    } else {
-        drawRect(Color(0xFFF5F0E8), size = Size(w, h))
-    }
-
-    val translateX = if (isForward) -offset else offset
-    drawContext.transform.translate(translateX, 0f)
+    val incoming = if (isForward) nextImage else previousImage
+    if (incoming != null) drawImageBitmap(incoming, w, h) else drawRect(Color(0xFFF5F0E8), size = Size(w, h))
+    val tx = if (isForward) -offset else offset
+    drawContext.transform.translate(tx, 0f)
     drawCurrentPage(currentImage, w, h)
-    drawRect(
-        Color.Black.copy(alpha = 0.15f * curlAmount),
-        topLeft = Offset(if (isForward) w - 30f else 0f, 0f),
-        size = Size(30f, h)
-    )
-    drawContext.transform.translate(-translateX, 0f)
+    drawContext.transform.translate(-tx, 0f)
 }
 
 private fun DrawScope.drawPageFade(
@@ -335,18 +291,9 @@ private fun DrawScope.drawPageFade(
         drawCurrentPage(currentImage, w, h)
         return
     }
-
     val isForward = state.direction == CurlDirection.FORWARD
-    val incomingImage = if (isForward) nextImage else previousImage
-
-    if (incomingImage != null) {
-        drawImage(
-            image = incomingImage,
-            dstSize = IntSize(w.toInt(), h.toInt()),
-            alpha = curlAmount
-        )
-    }
-
+    val incoming = if (isForward) nextImage else previousImage
+    if (incoming != null) drawImageBitmap(incoming, w, h, alpha = curlAmount)
     drawCurrentPage(currentImage, w, h, alpha = 1f - curlAmount)
 }
 
@@ -355,26 +302,15 @@ private fun DrawScope.drawPageNone(currentImage: ImageBitmap?, w: Float, h: Floa
 }
 
 private fun DrawScope.drawCurrentPage(image: ImageBitmap?, w: Float, h: Float, alpha: Float = 1f) {
-    if (image != null) {
-        drawImage(
-            image = image,
-            dstSize = IntSize(w.toInt(), h.toInt()),
-            alpha = alpha
-        )
-    } else {
-        drawRect(Color(0xFFFFFAF2), size = Size(w, h), alpha = alpha)
-    }
+    if (image != null) drawImageBitmap(image, w, h, alpha)
+    else drawRect(Color(0xFFFFFAF2), size = Size(w, h), alpha = alpha)
 }
 
-private fun DrawScope.drawImage(
-    image: ImageBitmap,
-    dstSize: IntSize,
-    alpha: Float = 1f
-) {
+private fun DrawScope.drawImageBitmap(image: ImageBitmap, w: Float, h: Float, alpha: Float = 1f) {
     drawImage(
         image = image,
         srcSize = IntSize(image.width, image.height),
-        dstSize = dstSize,
+        dstSize = IntSize(w.toInt(), h.toInt()),
         alpha = alpha
     )
 }

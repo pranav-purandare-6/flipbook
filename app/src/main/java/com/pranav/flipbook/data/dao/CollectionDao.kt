@@ -20,6 +20,12 @@ interface CollectionDao {
     @Query("SELECT * FROM collections ORDER BY name ASC")
     fun getAllCollections(): Flow<List<CollectionEntity>>
 
+    @Query("SELECT * FROM collections ORDER BY name ASC")
+    suspend fun getAllCollectionsSnapshot(): List<CollectionEntity>
+
+    @Query("SELECT * FROM book_collection_cross_ref")
+    suspend fun getAllBookCollectionCrossRefs(): List<BookCollectionCrossRef>
+
     @Query("SELECT * FROM collections WHERE id = :id")
     suspend fun getCollectionById(id: Long): CollectionEntity?
 

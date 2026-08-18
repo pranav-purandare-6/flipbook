@@ -21,6 +21,9 @@ interface BookmarkDao {
     @Query("SELECT * FROM bookmarks ORDER BY createdDate DESC")
     fun getAllBookmarks(): Flow<List<BookmarkEntity>>
 
+    @Query("SELECT * FROM bookmarks ORDER BY createdDate DESC")
+    suspend fun getAllBookmarksSnapshot(): List<BookmarkEntity>
+
     @Query("SELECT * FROM bookmarks WHERE id = :id")
     suspend fun getBookmarkById(id: Long): BookmarkEntity?
 

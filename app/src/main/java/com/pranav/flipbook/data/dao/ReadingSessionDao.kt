@@ -21,6 +21,9 @@ interface ReadingSessionDao {
     @Query("SELECT * FROM reading_sessions ORDER BY startTime DESC")
     fun getAllSessions(): Flow<List<ReadingSessionEntity>>
 
+    @Query("SELECT * FROM reading_sessions ORDER BY startTime DESC")
+    suspend fun getAllSessionsSnapshot(): List<ReadingSessionEntity>
+
     @Query("SELECT * FROM reading_sessions ORDER BY startTime DESC LIMIT :limit")
     fun getRecentSessions(limit: Int = 50): Flow<List<ReadingSessionEntity>>
 

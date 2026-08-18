@@ -20,6 +20,12 @@ interface ReadingListDao {
     @Query("SELECT * FROM reading_lists ORDER BY isSystemList DESC, name ASC")
     fun getAllLists(): Flow<List<ReadingListEntity>>
 
+    @Query("SELECT * FROM reading_lists ORDER BY isSystemList DESC, name ASC")
+    suspend fun getAllListsSnapshot(): List<ReadingListEntity>
+
+    @Query("SELECT * FROM reading_list_book_cross_ref")
+    suspend fun getAllListBookCrossRefs(): List<ReadingListBookCrossRef>
+
     @Query("SELECT * FROM reading_lists WHERE id = :id")
     suspend fun getListById(id: Long): ReadingListEntity?
 

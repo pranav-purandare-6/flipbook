@@ -1,18 +1,24 @@
 package com.pranav.flipbook.ui.settings
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.pranav.flipbook.data.backup.BackupManager
+import com.pranav.flipbook.utils.CacheManager
 import com.pranav.flipbook.viewmodel.SettingsViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -20,20 +26,63 @@ fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val backupManager = remember { BackupManager(context) }
+
     val transitionStyle by viewModel.transitionStyle.collectAsState()
     val animationSpeed by viewModel.animationSpeed.collectAsState()
     val pageSoundEnabled by viewModel.pageSoundEnabled.collectAsState()
+    val pageSoundVolume by viewModel.pageSoundVolume.collectAsState()
     val ambientSound by viewModel.ambientSound.collectAsState()
+    val ambientVolume by viewModel.ambientVolume.collectAsState()
     val readerTheme by viewModel.readerTheme.collectAsState()
+    val readerBrightness by viewModel.readerBrightness.collectAsState()
     val marginSize by viewModel.marginSize.collectAsState()
     val autoHideControls by viewModel.autoHideControls.collectAsState()
-    val showBookOpening by viewModel.showBookOpening.collectAsState()
+
+    var cacheMessage by remember { mutableStateOf<String?>(null) }
+    var backupMessage by remember { mutableStateOf<String?>(null) }
+
+    val backupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                val ok = backupManager.createBackup(it)
+                backupMessage = if (ok) "Backup saved successfully" else "Backup failed"
+            }
+        }
+    }
+
+    val restoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                val ok = backupManager.restoreBackup(it)
+                backupMessage = if (ok) "Restore completed" else "Restore failed"
+            }
+        }
+    }
+
+    LaunchedEffect(cacheMessage, backupMessage) {
+        cacheMessage?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show(); cacheMessage = null }
+        backupMessage?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show(); backupMessage = null }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Settings") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } }
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { padding ->
@@ -41,15 +90,36 @@ fun SettingsScreen(
             modifier = Modifier.padding(padding).fillMaxSize(),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-            // Reader Section
             item { SettingsSectionHeader("Reader") }
+
+            item {
+                SettingsDropdown(
+                    title = "Reading Mode",
+                    subtitle = readerTheme,
+                    options = listOf("light", "dark", "sepia", "warm", "bw"),
+                    labels = listOf("Light", "Dark", "Sepia", "Warm", "Black & White"),
+                    selected = readerTheme,
+                    onSelect = { viewModel.setReaderTheme(it) }
+                )
+            }
+
+            item {
+                SettingsSlider(
+                    title = "Brightness",
+                    value = readerBrightness,
+                    range = 0.3f..1f,
+                    steps = 6,
+                    label = "${(readerBrightness * 100).toInt()}%",
+                    onValueChange = { viewModel.setReaderBrightness(it) }
+                )
+            }
 
             item {
                 SettingsDropdown(
                     title = "Page Transition",
                     subtitle = transitionStyle,
                     options = listOf("CURL", "SLIDE", "FADE", "NONE"),
-                    labels = listOf("Realistic Page Curl", "Simple Slide", "Fade", "None"),
+                    labels = listOf("Realistic Page Curl", "Slide", "Fade", "None"),
                     selected = transitionStyle,
                     onSelect = { viewModel.setTransitionStyle(it) }
                 )
@@ -59,25 +129,16 @@ fun SettingsScreen(
                 SettingsSlider(
                     title = "Animation Speed",
                     value = animationSpeed.toFloat(),
-                    range = 100f..2000f,
+                    range = 150f..1200f,
                     steps = 4,
                     label = when {
-                        animationSpeed <= 200 -> "Very Fast"
-                        animationSpeed <= 350 -> "Fast"
-                        animationSpeed <= 500 -> "Normal"
-                        animationSpeed <= 800 -> "Slow"
+                        animationSpeed <= 250 -> "Very Fast"
+                        animationSpeed <= 400 -> "Fast"
+                        animationSpeed <= 550 -> "Normal"
+                        animationSpeed <= 750 -> "Slow"
                         else -> "Very Slow"
                     },
                     onValueChange = { viewModel.setAnimationSpeed(it.toInt()) }
-                )
-            }
-
-            item {
-                SettingsSwitch(
-                    title = "Auto-hide Controls",
-                    subtitle = "Hide reader controls after inactivity",
-                    checked = autoHideControls,
-                    onCheckedChange = { viewModel.setAutoHideControls(it) }
                 )
             }
 
@@ -92,38 +153,34 @@ fun SettingsScreen(
                 )
             }
 
-            // Appearance
-            item { SettingsSectionHeader("Appearance") }
-
-            item {
-                SettingsDropdown(
-                    title = "Reader Theme",
-                    subtitle = readerTheme,
-                    options = listOf("light", "dark", "sepia", "warm", "bw"),
-                    labels = listOf("Light", "Dark", "Sepia", "Warm", "Black & White"),
-                    selected = readerTheme,
-                    onSelect = { viewModel.setReaderTheme(it) }
-                )
-            }
-
             item {
                 SettingsSwitch(
-                    title = "Book Opening Animation",
-                    subtitle = "Show animation when opening a book",
-                    checked = showBookOpening,
-                    onCheckedChange = { viewModel.setShowBookOpening(it) }
+                    title = "Auto-hide Controls",
+                    subtitle = "Hide reader controls after inactivity",
+                    checked = autoHideControls,
+                    onCheckedChange = { viewModel.setAutoHideControls(it) }
                 )
             }
 
-            // Audio
             item { SettingsSectionHeader("Audio") }
 
             item {
                 SettingsSwitch(
                     title = "Page Turn Sound",
-                    subtitle = "Play subtle sound on page turn",
+                    subtitle = "Play a subtle rustle when turning pages",
                     checked = pageSoundEnabled,
                     onCheckedChange = { viewModel.setPageSound(it) }
+                )
+            }
+
+            item {
+                SettingsSlider(
+                    title = "Page Turn Volume",
+                    value = pageSoundVolume,
+                    range = 0f..1f,
+                    steps = 9,
+                    label = "${(pageSoundVolume * 100).toInt()}%",
+                    onValueChange = { viewModel.setPageSoundVolume(it) }
                 )
             }
 
@@ -132,39 +189,73 @@ fun SettingsScreen(
                     title = "Ambient Sound",
                     subtitle = ambientSound,
                     options = listOf("none", "rain", "fireplace", "cafe", "forest", "whitenoise"),
-                    labels = listOf("None", "Rain", "Fireplace", "Café", "Forest", "White Noise"),
+                    labels = listOf("None", "Rain", "Fireplace", "Cafe", "Forest", "White Noise"),
                     selected = ambientSound,
                     onSelect = { viewModel.setAmbientSound(it) }
                 )
             }
 
-            // Storage
+            item {
+                SettingsSlider(
+                    title = "Ambient Volume",
+                    value = ambientVolume,
+                    range = 0f..1f,
+                    steps = 9,
+                    label = "${(ambientVolume * 100).toInt()}%",
+                    onValueChange = { viewModel.setAmbientVolume(it) }
+                )
+            }
+
             item { SettingsSectionHeader("Storage") }
 
             item {
                 SettingsItem(
-                    title = "Clear Page Cache",
-                    subtitle = "Free up space used by rendered pages",
-                    onClick = { /* TODO clear cache */ }
+                    title = "Clear Thumbnail Cache",
+                    subtitle = "Covers: ${CacheManager.formatSize(CacheManager.getThumbnailCacheSize(context))}",
+                    onClick = {
+                        CacheManager.clearThumbnailCache(context)
+                        cacheMessage = "Thumbnail cache cleared"
+                    }
                 )
             }
 
             item {
                 SettingsItem(
-                    title = "Clear Cover Cache",
-                    subtitle = "Covers will be regenerated when needed",
-                    onClick = { /* TODO clear covers */ }
+                    title = "Clear Temporary Files",
+                    subtitle = "Temp: ${CacheManager.formatSize(CacheManager.getTempCacheSize(context))}",
+                    onClick = {
+                        CacheManager.clearTempCache(context)
+                        cacheMessage = "Temporary files cleared"
+                    }
                 )
             }
 
-            // About
+            item { SettingsSectionHeader("Data") }
+
+            item {
+                SettingsItem(
+                    title = "Backup Data",
+                    subtitle = "Export progress, bookmarks, notes, and settings",
+                    onClick = {
+                        backupLauncher.launch("flipbook_backup_${System.currentTimeMillis()}.json")
+                    }
+                )
+            }
+
+            item {
+                SettingsItem(
+                    title = "Restore Data",
+                    subtitle = "Import a previously exported backup file",
+                    onClick = { restoreLauncher.launch(arrayOf("application/json")) }
+                )
+            }
+
             item { SettingsSectionHeader("About") }
 
             item {
-                SettingsItem(
+                SettingsInfoItem(
                     title = "Flip Book",
-                    subtitle = "Version 1.0 · All data stays on your device",
-                    onClick = { }
+                    subtitle = "Version 1.0 - All data stays on your device"
                 )
             }
 
@@ -284,6 +375,25 @@ private fun SettingsItem(title: String, subtitle: String, onClick: () -> Unit) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(subtitle, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun SettingsInfoItem(title: String, subtitle: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

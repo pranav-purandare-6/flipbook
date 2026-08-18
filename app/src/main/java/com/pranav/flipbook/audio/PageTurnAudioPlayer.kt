@@ -3,42 +3,45 @@ package com.pranav.flipbook.audio
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.SoundPool
+import java.io.File
 
 class PageTurnAudioPlayer(context: Context) {
 
-    private var soundPool: SoundPool? = null
+    private val soundPool: SoundPool
     private var soundId: Int = 0
-    private var isLoaded = false
+    @Volatile private var loaded = false
 
     init {
-        try {
-            val audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_MEDIA)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
+        val attrs = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
 
-            soundPool = SoundPool.Builder()
-                .setMaxStreams(3)
-                .setAudioAttributes(audioAttributes)
-                .build()
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(2)
+            .setAudioAttributes(attrs)
+            .build()
 
-            soundPool?.setOnLoadCompleteListener { _, _, status ->
-                isLoaded = status == 0
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        soundPool.setOnLoadCompleteListener { _, id, status ->
+            if (id == soundId) loaded = status == 0
+        }
+
+        soundId = try {
+            val soundFile: File = ProceduralSoundGenerator.ensurePageTurnSound(context.cacheDir)
+            soundPool.load(soundFile.absolutePath, 1)
+        } catch (_: Exception) {
+            0
         }
     }
 
-    fun playPageTurnSound(volume: Float = 0.5f) {
-        if (isLoaded && soundPool != null && soundId != 0) {
-            soundPool?.play(soundId, volume, volume, 1, 0, 1.0f)
-        }
+    fun play(volume: Float) {
+        if (!loaded || soundId == 0) return
+        val v = volume.coerceIn(0f, 1f)
+        soundPool.play(soundId, v, v, 1, 0, 1f)
     }
 
     fun release() {
-        soundPool?.release()
-        soundPool = null
-        isLoaded = false
+        soundPool.release()
+        loaded = false
     }
 }

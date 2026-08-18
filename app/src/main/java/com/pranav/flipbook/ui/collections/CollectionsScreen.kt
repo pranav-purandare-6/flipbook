@@ -121,12 +121,10 @@ fun CollectionDetailScreen(
     viewModel: CollectionViewModel = viewModel()
 ) {
     val books by viewModel.getBooksInCollection(collectionId).collectAsState(initial = emptyList())
-    var collection by remember { mutableStateOf<CollectionEntity?>(null) }
+    val collections by viewModel.collections.collectAsState()
+    val collection = collections.find { it.id == collectionId }
     var showAddBookDialog by remember { mutableStateOf(false) }
-
-    LaunchedEffect(collectionId) {
-        collection = viewModel.collections.value.find { it.id == collectionId }
-    }
+    var bookToRemove by remember { mutableStateOf<BookEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -162,7 +160,8 @@ fun CollectionDetailScreen(
                     BookListItem(
                         book = book,
                         onClick = { onBookClick(book.id) },
-                        onFavoriteClick = { }
+                        onFavoriteClick = { viewModel.toggleFavorite(book) },
+                        onRemoveClick = { bookToRemove = book }
                     )
                 }
             }
@@ -170,12 +169,23 @@ fun CollectionDetailScreen(
 
         if (showAddBookDialog) {
             val allBooks by viewModel.getAllBooks().collectAsState(initial = emptyList())
+            val existingIds = remember(books) { books.map { it.id }.toSet() }
             AlertDialog(
                 onDismissRequest = { showAddBookDialog = false },
                 title = { Text("Add Book to Collection") },
                 text = {
                     LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                        items(allBooks, key = { it.id }) { book ->
+                        val availableBooks = allBooks.filterNot { it.id in existingIds }
+                        if (availableBooks.isEmpty()) {
+                            item {
+                                Text(
+                                    "All books are already in this collection",
+                                    modifier = Modifier.padding(12.dp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        items(availableBooks, key = { it.id }) { book ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -195,6 +205,23 @@ fun CollectionDetailScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = { showAddBookDialog = false }) { Text("Done") }
+                }
+            )
+        }
+
+        bookToRemove?.let { book ->
+            AlertDialog(
+                onDismissRequest = { bookToRemove = null },
+                title = { Text("Remove from Collection") },
+                text = { Text("Remove \"${book.displayTitle}\" from this collection?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        viewModel.removeBookFromCollection(book.id, collectionId)
+                        bookToRemove = null
+                    }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { bookToRemove = null }) { Text("Cancel") }
                 }
             )
         }
